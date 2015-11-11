@@ -1,13 +1,28 @@
 #Health
 
-This is a simple healtcheck utility. 
+This is a simple healtcheck utility for OS-X / Linux only right now (no windows support right now because of ANSI clear code).
 
 ##Usage
 
 ```bash
-> health <server>
+> health --host <server>
 ```
 
-<server> can be either a single URL or a comma separated list of urls. 
+Health will ping the servers every 30 seconds by default. If a server goes down it will raise a notification via AppleScript. 
 
-Health will print a single "." for every successful ping.
+##Config File Format
+
+Optionally you can create a config file with the following format:
+
+```json
+{
+  "interval": 30000,
+  "show_notification": true,
+  "hosts": [
+    "http://www.google.com",
+    "http://www.apple.com"
+  ]
+}
+```
+
+Interval, by default, is set in milliseconds. 
