@@ -8,7 +8,7 @@ Install using standard `go get && go install`. Make sure that your `$GOPATH/bin`
 
 ```bash
 > go get -u github.com/wcharczuk/health
-> go isntall github.com/wcharczuk/health
+> go install github.com/wcharczuk/health
 > health --host http://google.com --interval 1000
 ```
 
