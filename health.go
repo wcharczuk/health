@@ -9,21 +9,157 @@ import (
 	"sync"
 	"time"
 
+	"./lib"
+
 	"github.com/blendlabs/go-request"
 )
 
 const (
-	COLOR_RED    = "31"
-	COLOR_BLUE   = "94"
-	COLOR_GREEN  = "32"
-	COLOR_YELLOW = "33"
-	COLOR_WHITE  = "37"
-	COLOR_GRAY   = "90"
+	RED    = "31"
+	BLUE   = "94"
+	GREEN  = "32"
+	YELLOW = "33"
+	WHITE  = "37"
+	GRAY   = "90"
+
+	MAX_STATS = 1000
 )
 
-func Color(input string, colorCode string) string {
-	return fmt.Sprintf("\033[%s;01m%s\033[0m", colorCode, input)
+type statusUpdate struct {
+	Host   string
+	Status bool
 }
+
+type statsUpdate struct {
+	Host    string
+	Elapsed time.Duration
+}
+
+type errorUpdate struct {
+	Host      string
+	Timestamp time.Time
+}
+
+var _lock *sync.Mutex
+
+var statuses map[string]bool
+var stats_queues map[string]*lib.DurationQueue
+var errors map[string][]time.Time
+
+func main() {
+	_lock = &sync.Mutex{}
+	config := parseFlags()
+
+	longest_host := 0
+
+	statuses = map[string]bool{}
+	stats_queues = map[string]*lib.DurationQueue{}
+	errors = map[string][]time.Time{}
+
+	for x := 0; x < len(config.Hosts); x++ {
+		host := config.Hosts[x]
+
+		statuses[host] = false
+		stats_queues[host] = &lib.DurationQueue{}
+		errors[host] = []time.Time{}
+
+		if len(host) > longest_host {
+			longest_host = len(host)
+		}
+
+		go pingServer(host, time.Duration(config.PollInterval)*time.Millisecond)
+	}
+
+	for {
+		clear()
+		for x := 0; x < len(config.Hosts); x++ {
+			host := config.Hosts[x]
+
+			_lock.Lock()
+			is_up, _ := statuses[host]
+			stats, _ := stats_queues[host]
+
+			if stats.Length > 1 {
+				last := *stats.PeekBack()
+				status(host, longest_host, is_up, last, stats.Mean(), stats.StdDev())
+			}
+			_lock.Unlock()
+		}
+
+		time.Sleep(time.Duration(config.PollInterval/2) * time.Millisecond)
+	}
+}
+
+func setStatus(host string, is_up bool) {
+	_lock.Lock()
+	defer _lock.Unlock()
+	statuses[host] = is_up
+}
+
+func pushStats(host string, elapsed time.Duration) {
+	_lock.Lock()
+	defer _lock.Unlock()
+	stats_queues[host].Push(elapsed)
+
+	if stats_queues[host].Length > MAX_STATS {
+		stats_queues[host].Pop()
+	}
+}
+
+func pushError(host string, errorTime time.Time) {
+	_lock.Lock()
+	defer _lock.Unlock()
+
+	errors[host] = append(errors[host], errorTime)
+}
+
+func pingServer(host string, poll_interval time.Duration) {
+	for {
+		before := time.Now()
+		res, res_err := request.NewRequest().AsGet().WithUrl(host).FetchRawResponse()
+		after := time.Now()
+		elapsed := after.Sub(before)
+
+		pushStats(host, elapsed)
+
+		if res_err != nil {
+			pushError(host, time.Now())
+			setStatus(host, false)
+		} else {
+			defer res.Body.Close()
+
+			if res.StatusCode != 200 {
+				pushError(host, time.Now())
+				setStatus(host, false)
+			} else {
+				setStatus(host, true)
+			}
+		}
+
+		time.Sleep(poll_interval)
+	}
+}
+
+func status(host string, host_width int, is_up bool, last time.Duration, avg time.Duration, stddev time.Duration) {
+	std_dev_label := color("StdDev", GRAY)
+	avg_label := color("Average", GRAY)
+	last_label := color("Last", GRAY)
+
+	status := color("UP", GREEN)
+	if !is_up {
+		status = color("DOWN", RED)
+	}
+
+	fixed_token := fmt.Sprintf("%%-%ds", host_width+3)
+	full_host := fmt.Sprintf(fixed_token, host)
+
+	full_text := fmt.Sprintf("%s %s %s: %s %s: %s %s: %s", full_host, status, last_label, last, avg_label, avg, std_dev_label, stddev)
+	fmt.Println(full_text)
+}
+
+//********************************************************************************
+// Console Arguments / Config
+//********************************************************************************
 
 type hostsFlag []string
 
@@ -77,7 +213,8 @@ func parseFlags() *Config {
 	if config_file_path != "" {
 		read_conf, conf_err := loadFromPath(config_file_path)
 		if conf_err != nil {
-			errorMessage(conf_err.Error())
+			fmt.Printf("%v\n", conf_err)
+			os.Exit(1)
 		}
 		conf = *read_conf
 	} else {
@@ -89,58 +226,11 @@ func parseFlags() *Config {
 	return &conf
 }
 
-func main() {
-	config := parseFlags()
-
-	var latch sync.WaitGroup
-	latch.Add(len(config.Hosts))
-	for x := 0; x < len(config.Hosts); x++ {
-		host := config.Hosts[x]
-		go func() {
-			pingServer(host, config)
-			latch.Done()
-		}()
-	}
-	latch.Wait()
-}
-
-func pingServer(host string, config *Config) {
-	for {
-		before := time.Now()
-		res, res_err := request.NewRequest().AsGet().WithUrl(host).FetchRawResponse()
-		after := time.Now()
-		elapsed := after.Sub(before)
-		if res_err != nil {
-			down(host, elapsed, config.ShowNotification)
-		} else {
-			defer res.Body.Close()
-
-			if res.StatusCode != 200 {
-				down(host, elapsed, config.ShowNotification)
-			} else {
-				up(host, elapsed)
-			}
-		}
-
-		time.Sleep(time.Duration(config.PollInterval) * time.Millisecond)
-	}
-}
-
-func up(host string, elapsed time.Duration) {
-	status(host, Color("up", COLOR_GREEN), elapsed)
-}
-
-func down(host string, elapsed time.Duration, show_notification bool) {
-	status(host, Color("down", COLOR_RED), elapsed)
-	if show_notification {
-		message := fmt.Sprintf("Last request took %v", elapsed)
-		title := fmt.Sprintf("%s is down", host)
-		notification(message, title)
-	}
-}
+//********************************************************************************
+// Utility
+//********************************************************************************
 
 func notification(message, title string) {
-
 	cmd_name := "osascript"
 	full_cmd_name, path_err := exec.LookPath(cmd_name)
 	if path_err != nil {
@@ -149,16 +239,13 @@ func notification(message, title string) {
 
 	arg_body := fmt.Sprintf("display notification \"%s\" with title \"%s\" sound name \"Basso\"", message, title)
 	cmd := exec.Command(full_cmd_name, "-e", arg_body)
-	cmd_err := cmd.Run()
-	if cmd_err != nil {
-		errorMessage(cmd_err.Error())
-	}
+	cmd.Run()
 }
 
-func errorMessage(message string) {
-	fmt.Printf("%s %s %s\n", Color(time.Now().Format(time.RFC3339), COLOR_GRAY), Color("error", COLOR_RED), message)
+func clear() {
+	fmt.Print("\033[H\033[2J")
 }
 
-func status(host string, status string, elapsed time.Duration) {
-	fmt.Printf("%s %s is %s (%s)\n", Color(time.Now().Format(time.RFC3339), COLOR_GRAY), host, status, elapsed)
+func color(input string, colorCode string) string {
+	return fmt.Sprintf("\033[%s;01m%s\033[0m", colorCode, input)
 }
