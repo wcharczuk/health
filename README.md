@@ -4,7 +4,7 @@ This is a simple healtcheck utility for OS-X / Linux only right now (no windows 
 
 ##Installation
 
-Install using standard `go get && go install`. Make sure that your `$GOPATH/bin` directory is in your $PATH
+Install using standard `go get && go install`. Make sure that your `$GOPATH/bin` directory is in your `$PATH`
 
 ```bash
 > go get -u github.com/wcharczuk/health
