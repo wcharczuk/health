@@ -82,6 +82,8 @@ func main() {
 			if stats.Length > 1 {
 				last := *stats.PeekBack()
 				status(host, longest_host, is_up, last, stats.Mean(), stats.StdDev())
+			} else {
+				fmt.Printf("Pinging %s ...\n", host)
 			}
 			_lock.Unlock()
 		}
@@ -150,10 +152,10 @@ func status(host string, host_width int, is_up bool, last time.Duration, avg tim
 		status = color("DOWN", RED)
 	}
 
-	fixed_token := fmt.Sprintf("%%-%ds", host_width+3)
+	fixed_token := fmt.Sprintf("%%-%ds", host_width+2)
 	full_host := fmt.Sprintf(fixed_token, host)
 
-	full_text := fmt.Sprintf("%s %s %s: %s %s: %s %s: %s", full_host, status, last_label, last, avg_label, avg, std_dev_label, stddev)
+	full_text := fmt.Sprintf("%s %s %s: %7s %s: %7s %s: %7s", full_host, status, last_label, formatDuration(last), avg_label, formatDuration(avg), std_dev_label, formatDuration(stddev))
 	fmt.Println(full_text)
 }
 
@@ -229,6 +231,35 @@ func parseFlags() *Config {
 //********************************************************************************
 // Utility
 //********************************************************************************
+
+func formatDuration(d time.Duration) string {
+	if d > time.Hour {
+		hours := d / time.Hour
+		hours_remainder := d - (hours * time.Hour)
+		minutes := hours_remainder / time.Minute
+		minute_remainder := hours_remainder - (minutes * time.Minute)
+		seconds := minute_remainder / time.Second
+
+		return fmt.Sprintf("%dh%dm%ds", hours, minutes, seconds)
+	} else if d > time.Minute {
+		minutes := d / time.Minute
+		minute_remainder := d - (minutes * time.Minute)
+		seconds := minute_remainder / time.Second
+
+		return fmt.Sprintf("%dm%ds", minutes, seconds)
+	} else if d > time.Second {
+		seconds := d / time.Second
+		seconds_remainder := d - (seconds * time.Second)
+		milliseconds := seconds_remainder / time.Millisecond
+		return fmt.Sprintf("%ds%dms", seconds, milliseconds)
+	} else if d > time.Millisecond {
+		milliseconds := d / time.Millisecond
+		return fmt.Sprintf("%dms", milliseconds)
+	} else {
+		microseconds := d / time.Microsecond
+		return fmt.Sprintf("%dµs", microseconds)
+	}
+}
 
 func notification(message, title string) {
 	cmd_name := "osascript"
