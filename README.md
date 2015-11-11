@@ -26,3 +26,9 @@ Optionally you can create a config file with the following format:
 ```
 
 Interval, by default, is set in milliseconds. 
+
+You specify the config file when invoking via:
+
+```bash
+> health --config my_config.json
+```
