@@ -1,7 +1,7 @@
 package lib
 
 import (
-	"math"
+	"math/big"
 	"time"
 )
 
@@ -85,31 +85,31 @@ func (dq *DurationQueue) Mean() time.Duration {
 
 // Population variance
 func (dq *DurationQueue) Variance() time.Duration {
-	variance := 0.0
+	variance := big.NewInt(0)
 
 	if dq.Head == nil {
 		return 0
 	}
 
-	m := float64(dq.Mean())
+	m := big.NewInt(int64(dq.Mean()))
 
 	node_ptr := dq.Head
 	for node_ptr != nil {
-		n := float64(node_ptr.Value)
+		n := big.NewInt(int64(node_ptr.Value))
 
-		diff := n - m
-		squared := diff * diff
+		diff := big.NewInt(0).Sub(n, m)
+		squared := big.NewInt(0).Mul(diff, diff)
 
-		variance = variance + squared
+		variance.Add(variance, squared)
 		node_ptr = node_ptr.Previous
 	}
 
-	v := variance / float64(dq.Length)
-	return time.Duration(v)
+	v := big.NewInt(0).Div(variance, big.NewInt(int64(dq.Length)))
+	return time.Duration(v.Int64())
 }
 
 func (dq *DurationQueue) StdDev() time.Duration {
-	vp := float64(dq.Variance())
-	sp := math.Pow(vp, 0.5)
+	vp := big.NewInt(int64(dq.Variance()))
+	sp := vp.Exp(x, y, m)
 	return time.Duration(sp)
 }

@@ -22,50 +22,40 @@ const (
 	WHITE  = "37"
 	GRAY   = "90"
 
-	MAX_STATS = 1000
+	MAX_STATS    = 1000
+	TIMEOUT_MSEC = 2500
 )
 
-type statusUpdate struct {
-	Host   string
-	Status bool
-}
-
-type statsUpdate struct {
-	Host    string
-	Elapsed time.Duration
-}
-
-type errorUpdate struct {
+type hostData struct {
 	Host      string
-	Timestamp time.Time
+	IsUp      bool
+	DownAt    *time.Time
+	Errors    []time.Time
+	Stats     *lib.DurationQueue
+	PingCount int
 }
 
 var _lock *sync.Mutex
-
-var statuses map[string]bool
-var stats_queues map[string]*lib.DurationQueue
-var errors map[string][]time.Time
+var _host_data map[string]*hostData
 
 func main() {
 	_lock = &sync.Mutex{}
+	_host_data = map[string]*hostData{}
+
 	config := parseFlags()
 
-	longest_host := 0
-
-	statuses = map[string]bool{}
-	stats_queues = map[string]*lib.DurationQueue{}
-	errors = map[string][]time.Time{}
+	longest_host_name := 0
+	for x := 0; x < len(config.Hosts); x++ {
+		l := len(config.Hosts[x])
+		if l > longest_host_name {
+			longest_host_name = l
+		}
+	}
 
 	for x := 0; x < len(config.Hosts); x++ {
 		host := config.Hosts[x]
 
-		statuses[host] = false
-		stats_queues[host] = &lib.DurationQueue{}
-		errors[host] = []time.Time{}
-
-		if len(host) > longest_host {
-			longest_host = len(host)
-		}
+		_host_data[host] = &hostData{Host: host, Stats: &lib.DurationQueue{}}
 
 		go pingServer(host, time.Duration(config.PollInterval)*time.Millisecond)
 	}
@@ -73,38 +63,44 @@ func main() {
 	for {
 		clear()
 		for x := 0; x < len(config.Hosts); x++ {
-			host := config.Hosts[x]
-
-			_lock.Lock()
-			is_up, _ := statuses[host]
-			stats, _ := stats_queues[host]
-
-			if stats.Length > 1 {
-				last := *stats.PeekBack()
-				status(host, longest_host, is_up, last, stats.Mean(), stats.StdDev())
-			} else {
-				fmt.Printf("Pinging %s ...\n", host)
-			}
-			_lock.Unlock()
+			status(longest_host_name, _host_data[config.Hosts[x]])
 		}
 
 		time.Sleep(time.Duration(config.PollInterval/2) * time.Millisecond)
 	}
 }
 
+func incrementPingCount(host string) {
+	_lock.Lock()
+	defer _lock.Unlock()
+
+	_host_data[host].PingCount = _host_data[host].PingCount + 1
+}
+
 func setStatus(host string, is_up bool) {
 	_lock.Lock()
 	defer _lock.Unlock()
-	statuses[host] = is_up
+
+	_host_data[host].IsUp = is_up
+
+	if is_up {
+		_host_data[host].DownAt = nil
+	} else {
+		if _host_data[host].DownAt == nil {
+			now := time.Now()
+			_host_data[host].DownAt = &now
+		}
+	}
 }
 
 func pushStats(host string, elapsed time.Duration) {
 	_lock.Lock()
 	defer _lock.Unlock()
-	stats_queues[host].Push(elapsed)
 
-	if stats_queues[host].Length > MAX_STATS {
-		stats_queues[host].Pop()
+	_host_data[host].Stats.Push(elapsed)
+
+	if _host_data[host].Stats.Length > MAX_STATS {
+		_host_data[host].Stats.Pop()
 	}
 }
 
@@ -112,18 +108,29 @@ func pushError(host string, errorTime time.Time) {
 	_lock.Lock()
 	defer _lock.Unlock()
 
-	errors[host] = append(errors[host], errorTime)
+	_host_data[host].Errors = append(_host_data[host].Errors, errorTime)
+}
+
+func getEffectivePollInterval(poll_interval time.Duration) time.Duration {
+	effective_interval := time.Duration(0)
+	timeout_msec := TIMEOUT_MSEC * time.Millisecond
+	if timeout_msec > poll_interval {
+		effective_interval = timeout_msec
+	} else {
+		effective_interval = poll_interval
+	}
+
+	return effective_interval
 }
 
 func pingServer(host string, poll_interval time.Duration) {
 	for {
 		before := time.Now()
-		res, res_err := request.NewRequest().AsGet().WithUrl(host).FetchRawResponse()
+		res, res_err := request.NewRequest().AsGet().WithUrl(host).WithTimeout(TIMEOUT_MSEC).FetchRawResponse()
 		after := time.Now()
 		elapsed := after.Sub(before)
 
-		pushStats(host, elapsed)
-
+		incrementPingCount(host)
 		if res_err != nil {
 			pushError(host, time.Now())
 			setStatus(host, false)
@@ -134,28 +141,49 @@ func pingServer(host string, poll_interval time.Duration) {
 				pushError(host, time.Now())
 				setStatus(host, false)
 			} else {
+				pushStats(host, elapsed)
 				setStatus(host, true)
 			}
 		}
 
-		time.Sleep(poll_interval)
+		time.Sleep(getEffectivePollInterval(poll_interval))
 	}
 }
 
-func status(host string, host_width int, is_up bool, last time.Duration, avg time.Duration, stddev time.Duration) {
+func status(host_width int, host_data *hostData) {
+
+	is_up := host_data.IsUp
+
 	std_dev_label := color("StdDev", GRAY)
 	avg_label := color("Average", GRAY)
 	last_label := color("Last", GRAY)
 
+	unknown_status := color("UNKNOWN", GRAY)
 	status := color("UP", GREEN)
 	if !is_up {
 		status = color("DOWN", RED)
 	}
 
 	fixed_token := fmt.Sprintf("%%-%ds", host_width+2)
-	full_host := fmt.Sprintf(fixed_token, host)
+	full_host := fmt.Sprintf(fixed_token, host_data.Host)
 
-	full_text := fmt.Sprintf("%s %s %s: %7s %s: %7s %s: %7s", full_host, status, last_label, formatDuration(last), avg_label, formatDuration(avg), std_dev_label, formatDuration(stddev))
+	var full_text string
+	if is_up && host_data.Stats.Length > 1 {
+		last := *host_data.Stats.Peek()
+		avg := host_data.Stats.Mean()
+		stddev := host_data.Stats.StdDev()
+
+		full_text = fmt.Sprintf("%s %6s %s: %7s %s: %7s %s: %7s", full_host, status, last_label, formatDuration(last), avg_label, formatDuration(avg), std_dev_label, formatDuration(stddev))
+	} else if !is_up && host_data.DownAt != nil {
+		down_at := *host_data.DownAt
+		down_for := time.Now().Sub(down_at)
+		full_text = fmt.Sprintf("%s %6s Down For: %s", full_host, status, formatDuration(down_for))
+	} else if host_data.PingCount > 0 {
+		full_text = fmt.Sprintf("%s %6s %s: %7s %s: %7s %s: %7s", full_host, status, last_label, "--", avg_label, "--", std_dev_label, "--")
+	} else {
+		full_text = fmt.Sprintf("%s %s", full_host, unknown_status)
+	}
+
 	fmt.Println(full_text)
 }
 

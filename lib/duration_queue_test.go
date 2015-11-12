@@ -112,3 +112,23 @@ func TestStatsAdvanced(t *testing.T) {
 	assert.True(s > 1414*time.Millisecond)
 	assert.True(s < 1415*time.Millisecond)
 }
+
+func TestStatsAdvancedIntense(t *testing.T) {
+	assert := assert.New(t)
+	queue := &DurationQueue{}
+
+	for i := 0; i < 1000; i++ {
+		queue.Push(time.Duration(i) * time.Second)
+	}
+
+	m := queue.Mean()
+	s := queue.StdDev()
+
+	println(m)
+	println(s)
+
+	assert.NotZero(m)
+	assert.NotZero(s)
+	assert.True(m > 0)
+	assert.True(s > 0)
+}
