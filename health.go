@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"./lib"
+	"github.com/wcharczuk/health/lib"
 
 	"github.com/blendlabs/go-request"
 )
