@@ -1,9 +1,25 @@
 package lib
 
 import (
-	"math/big"
+	"errors"
+	"math"
+	"sort"
 	"time"
 )
+
+type durationList []time.Duration
+
+func (dl durationList) Len() int {
+	return len(dl)
+}
+
+func (dl durationList) Less(i, j int) bool {
+	return dl[i] < dl[j]
+}
+
+func (dl durationList) Swap(i, j int) {
+	dl[i], dl[j] = dl[j], dl[i]
+}
 
 type durationNode struct {
 	Value    time.Duration
@@ -15,6 +31,21 @@ type DurationQueue struct {
 	Head   *durationNode
 	Tail   *durationNode
 	Length int
+}
+
+func (dq *DurationQueue) ToArray() []time.Duration {
+	if dq.Head == nil {
+		return []time.Duration{}
+	}
+
+	results := []time.Duration{}
+	node_ptr := dq.Head
+	for node_ptr != nil {
+		results = append(results, node_ptr.Value)
+		node_ptr = node_ptr.Previous
+	}
+
+	return results
 }
 
 func (dq *DurationQueue) Push(value time.Duration) {
@@ -83,33 +114,73 @@ func (dq *DurationQueue) Mean() time.Duration {
 	return accum / time.Duration(dq.Length)
 }
 
-// Population variance
-func (dq *DurationQueue) Variance() time.Duration {
-	variance := big.NewInt(0)
-
+func (dq *DurationQueue) Percentile(percentile float64) time.Duration {
 	if dq.Head == nil {
-		return 0
+		return time.Duration(0)
 	}
 
-	m := big.NewInt(int64(dq.Mean()))
+	values := dq.ToArray()
+	sort.Sort(durationList(values))
 
-	node_ptr := dq.Head
-	for node_ptr != nil {
-		n := big.NewInt(int64(node_ptr.Value))
+	index := (percentile / 100.0) * float64(len(values))
+	if index == float64(int64(index)) {
+		i := float64ToInt(index)
 
-		diff := big.NewInt(0).Sub(n, m)
-		squared := big.NewInt(0).Mul(diff, diff)
+		if i < 1 {
+			return time.Duration(0)
+		}
 
-		variance.Add(variance, squared)
-		node_ptr = node_ptr.Previous
+		value_1 := float64(values[i-1])
+		value_2 := float64(values[i])
+		to_average := []float64{value_1, value_2}
+		averaged := mean(to_average)
+
+		return time.Duration(int64(averaged))
+	} else {
+		i := float64ToInt(index)
+		if i < 1 {
+			return time.Duration(0)
+		}
+
+		return values[i-1]
 	}
-
-	v := big.NewInt(0).Div(variance, big.NewInt(int64(dq.Length)))
-	return time.Duration(v.Int64())
 }
 
-func (dq *DurationQueue) StdDev() time.Duration {
-	vp := big.NewInt(int64(dq.Variance()))
-	sp := vp.Exp(x, y, m)
-	return time.Duration(sp)
+func mean(input []float64) float64 {
+	accum := 0.0
+	input_len := len(input)
+	for i := 0; i < input_len; i++ {
+		v := input[i]
+		accum = accum + float64(v)
+	}
+	return accum / float64(input_len)
+}
+
+func round(input float64, places int) (rounded float64, err error) {
+	if math.IsNaN(input) {
+		return 0.0, errors.New("Not a number")
+	}
+
+	sign := 1.0
+	if input < 0 {
+		sign = -1
+		input *= -1
+	}
+
+	precision := math.Pow(10, float64(places))
+	digit := input * precision
+	_, decimal := math.Modf(digit)
+
+	if decimal >= 0.5 {
+		rounded = math.Ceil(digit)
+	} else {
+		rounded = math.Floor(digit)
+	}
+
+	return rounded / precision * sign, nil
+}
+
+func float64ToInt(input float64) (output int) {
+	r, _ := round(input, 0)
+	return int(r)
 }

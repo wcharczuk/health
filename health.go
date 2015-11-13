@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wcharczuk/health/lib"
+	"./lib"
 
 	"github.com/blendlabs/go-request"
 )
@@ -154,7 +154,9 @@ func status(host_width int, host_data *hostData) {
 
 	is_up := host_data.IsUp
 
-	std_dev_label := color("StdDev", GRAY)
+	label_99th := color("99th", GRAY)
+	label_90th := color("90th", GRAY)
+	label_75th := color("75th", GRAY)
 	avg_label := color("Average", GRAY)
 	last_label := color("Last", GRAY)
 
@@ -171,15 +173,17 @@ func status(host_width int, host_data *hostData) {
 	if is_up && host_data.Stats.Length > 1 {
 		last := *host_data.Stats.Peek()
 		avg := host_data.Stats.Mean()
-		stddev := host_data.Stats.StdDev()
+		percentile_99 := host_data.Stats.Percentile(99.0)
+		percentile_90 := host_data.Stats.Percentile(90.0)
+		percentile_75 := host_data.Stats.Percentile(75.0)
 
-		full_text = fmt.Sprintf("%s %6s %s: %7s %s: %7s %s: %7s", full_host, status, last_label, formatDuration(last), avg_label, formatDuration(avg), std_dev_label, formatDuration(stddev))
+		full_text = fmt.Sprintf("%s %6s %s: %-6s %s: %-6s %s: %-6s %s: %-6s %s: %-6s", full_host, status, last_label, formatDuration(last), avg_label, formatDuration(avg), label_99th, formatDuration(percentile_99), label_90th, formatDuration(percentile_90), label_75th, formatDuration(percentile_75))
 	} else if !is_up && host_data.DownAt != nil {
 		down_at := *host_data.DownAt
 		down_for := time.Now().Sub(down_at)
 		full_text = fmt.Sprintf("%s %6s Down For: %s", full_host, status, formatDuration(down_for))
 	} else if host_data.PingCount > 0 {
-		full_text = fmt.Sprintf("%s %6s %s: %7s %s: %7s %s: %7s", full_host, status, last_label, "--", avg_label, "--", std_dev_label, "--")
+		full_text = fmt.Sprintf("%s %6s %s: %-6s %s: %-6s %s: %-6s %s: %-6ss %s: %-6s", full_host, status, last_label, "--", avg_label, "--", label_99th, "--", label_90th, "--", label_75th, "--")
 	} else {
 		full_text = fmt.Sprintf("%s %s", full_host, unknown_status)
 	}

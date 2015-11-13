@@ -104,13 +104,8 @@ func TestStatsAdvanced(t *testing.T) {
 	queue.Push(5 * time.Second)
 
 	m := queue.Mean()
-	s := queue.StdDev()
 
 	assert.Equal(3*time.Second, m)
-
-	assert.NotZero(s)
-	assert.True(s > 1414*time.Millisecond)
-	assert.True(s < 1415*time.Millisecond)
 }
 
 func TestStatsAdvancedIntense(t *testing.T) {
@@ -122,13 +117,6 @@ func TestStatsAdvancedIntense(t *testing.T) {
 	}
 
 	m := queue.Mean()
-	s := queue.StdDev()
-
-	println(m)
-	println(s)
-
 	assert.NotZero(m)
-	assert.NotZero(s)
 	assert.True(m > 0)
-	assert.True(s > 0)
 }
