@@ -22,6 +22,12 @@ Install using standard `go get && go install`. Make sure that your `$GOPATH/bin`
 
 Health will ping the servers every 30 seconds by default. If a server goes down it will raise a notification via AppleScript. 
 
+You can have multiple `--host` values:
+
+```bash
+> health --host <server> --host <another server> --host <yet another server>
+```
+
 ##Example Output:
 
 ```bash
