@@ -23,12 +23,12 @@ Health will ping the servers every 30 seconds by default. If a server goes down 
 ##Example Output:
 
 ```bash
-http://fooserver.com/status/postgres   UP Last: 164.018477ms Average: 274.073916ms StdDev: 110.055439ms
-http://barserver.com/status/postgres   UP Last: 733.29607ms  Average: 584.391811ms StdDev: 148.904259ms
-http://bazserver.com/status/postgres   UP Last: 155.562902ms Average: 296.666452ms StdDev: 141.10355ms
+http://fooserver.com/status/postgres   UP Last: 1ms    Average: 2ms    99th: 2ms     90th: 2ms    75th: 2ms
+http://barserver.com/status/postgres   UP Last: 1ms    Average: 2ms    99th: 3ms     90th: 2ms    75th: 2ms
+http://bazserver.com/status/postgres   UP Last: 1ms    Average: 2ms    99th: 4ms     90th: 2ms    75th: 1ms
 ```
 
-The screen will clear everytime the interval/2 timer fires, so you should always basically see that (the list of the servers you're monitoring).
+The screen will clear every 500ms. The polling interval will also be used as the timeout for the pings, with the difference between the elapsed time for the ping and the interval comprising the rest of the sleep time.
 
 ##Config File Format
 
