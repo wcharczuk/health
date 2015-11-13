@@ -1,6 +1,8 @@
 #Health
 
-This is a simple healtcheck utility for OS-X / Linux only right now (no windows support right now because of ANSI clear code).
+This is a simple commandline healtcheck utility.
+
+It is only for OS-X / Linux right now (no windows support because of the ANSI clear code used to wipe the console).
 
 ##Installation
 
