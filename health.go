@@ -103,6 +103,7 @@ func setStatus(host string, is_up bool) {
 		_host_data[host].DownAt = nil
 	} else {
 		if _host_data[host].DownAt == nil {
+			notification(fmt.Sprintf("Down at %s", time.Now().Format(time.RFC3339)), fmt.Sprintf("%s is down.", host))
 			now := time.Now()
 			_host_data[host].DownAt = &now
 		}
