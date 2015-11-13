@@ -23,7 +23,7 @@ const (
 	GRAY   = "90"
 
 	MAX_STATS    = 1000
-	TIMEOUT_MSEC = 2500
+	TIMEOUT_MSEC = 2000
 )
 
 type hostData struct {
@@ -56,7 +56,6 @@ func main() {
 		host := config.Hosts[x]
 
 		_host_data[host] = &hostData{Host: host, Stats: &lib.DurationQueue{}}
-
 		go pingServer(host, time.Duration(config.PollInterval)*time.Millisecond)
 	}
 
@@ -66,7 +65,7 @@ func main() {
 			status(longest_host_name, _host_data[config.Hosts[x]])
 		}
 
-		time.Sleep(time.Duration(config.PollInterval/2) * time.Millisecond)
+		time.Sleep(500 * time.Millisecond)
 	}
 }
 
@@ -126,7 +125,7 @@ func getEffectivePollInterval(poll_interval time.Duration) time.Duration {
 func pingServer(host string, poll_interval time.Duration) {
 	for {
 		before := time.Now()
-		res, res_err := request.NewRequest().AsGet().WithUrl(host).WithTimeout(TIMEOUT_MSEC).FetchRawResponse()
+		res, res_err := request.NewRequest().AsGet().WithUrl(host).FetchRawResponse()
 		after := time.Now()
 		elapsed := after.Sub(before)
 
@@ -151,7 +150,6 @@ func pingServer(host string, poll_interval time.Duration) {
 }
 
 func status(host_width int, host_data *hostData) {
-
 	is_up := host_data.IsUp
 
 	label_99th := color("99th", GRAY)
@@ -183,7 +181,7 @@ func status(host_width int, host_data *hostData) {
 		down_for := time.Now().Sub(down_at)
 		full_text = fmt.Sprintf("%s %6s Down For: %s", full_host, status, formatDuration(down_for))
 	} else if host_data.PingCount > 0 {
-		full_text = fmt.Sprintf("%s %6s %s: %-6s %s: %-6s %s: %-7s %s: %-6ss %s: %-6s", full_host, status, last_label, "--", avg_label, "--", label_99th, "--", label_90th, "--", label_75th, "--")
+		full_text = fmt.Sprintf("%s %6s %s: %-6s %s: %-6s %s: %-7s %s: %-6s %s: %-6s", full_host, status, last_label, "--", avg_label, "--", label_99th, "--", label_90th, "--", label_75th, "--")
 	} else {
 		full_text = fmt.Sprintf("%s %s", full_host, unknown_status)
 	}
