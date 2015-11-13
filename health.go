@@ -177,13 +177,13 @@ func status(host_width int, host_data *hostData) {
 		percentile_90 := host_data.Stats.Percentile(90.0)
 		percentile_75 := host_data.Stats.Percentile(75.0)
 
-		full_text = fmt.Sprintf("%s %6s %s: %-6s %s: %-6s %s: %-6s %s: %-6s %s: %-6s", full_host, status, last_label, formatDuration(last), avg_label, formatDuration(avg), label_99th, formatDuration(percentile_99), label_90th, formatDuration(percentile_90), label_75th, formatDuration(percentile_75))
+		full_text = fmt.Sprintf("%s %6s %s: %-6s %s: %-6s %s: %-7s %s: %-6s %s: %-6s", full_host, status, last_label, formatDuration(last), avg_label, formatDuration(avg), label_99th, formatDuration(percentile_99), label_90th, formatDuration(percentile_90), label_75th, formatDuration(percentile_75))
 	} else if !is_up && host_data.DownAt != nil {
 		down_at := *host_data.DownAt
 		down_for := time.Now().Sub(down_at)
 		full_text = fmt.Sprintf("%s %6s Down For: %s", full_host, status, formatDuration(down_for))
 	} else if host_data.PingCount > 0 {
-		full_text = fmt.Sprintf("%s %6s %s: %-6s %s: %-6s %s: %-6s %s: %-6ss %s: %-6s", full_host, status, last_label, "--", avg_label, "--", label_99th, "--", label_90th, "--", label_75th, "--")
+		full_text = fmt.Sprintf("%s %6s %s: %-6s %s: %-6s %s: %-7s %s: %-6ss %s: %-6s", full_host, status, last_label, "--", avg_label, "--", label_99th, "--", label_90th, "--", label_75th, "--")
 	} else {
 		full_text = fmt.Sprintf("%s %s", full_host, unknown_status)
 	}
