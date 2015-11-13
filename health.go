@@ -60,11 +60,17 @@ func main() {
 			}
 		}
 
+		latch := sync.WaitGroup{}
+		latch.Add(len(config.Hosts))
+
 		for x := 0; x < len(config.Hosts); x++ {
 			host := config.Hosts[x]
-
 			_host_data[host] = &hostData{Host: host, Stats: &DurationQueue{}}
-			go pingServer(host, time.Duration(config.PollInterval)*time.Millisecond)
+
+			go func() {
+				pingServer(host, time.Duration(config.PollInterval)*time.Millisecond)
+				latch.Done()
+			}()
 		}
 
 		for !_config_did_change {
@@ -72,11 +78,11 @@ func main() {
 			for x := 0; x < len(config.Hosts); x++ {
 				status(longest_host_name, _host_data[config.Hosts[x]])
 			}
-
-			checkConfig()
 			time.Sleep(500 * time.Millisecond)
+			checkConfig()
 		}
 
+		latch.Wait()
 		config = reloadConfig(config)
 	}
 }
@@ -84,7 +90,6 @@ func main() {
 func incrementPingCount(host string) {
 	_lock.Lock()
 	defer _lock.Unlock()
-
 	_host_data[host].PingCount = _host_data[host].PingCount + 1
 }
 
@@ -134,7 +139,6 @@ func getEffectivePollInterval(poll_interval time.Duration) time.Duration {
 func pingServer(host string, poll_interval time.Duration) {
 	effective_poll_interval := getEffectivePollInterval(poll_interval)
 	for !_config_did_change {
-
 		before := time.Now()
 		res, res_err := request.NewRequest().AsGet().WithUrl(host).WithTimeout(effective_poll_interval).FetchRawResponse()
 		after := time.Now()
@@ -269,6 +273,17 @@ func parseFlags() *Config {
 		_config_did_change = false
 
 		conf = *read_conf
+	} else {
+		if _poll_interval_msec != nil {
+			conf.PollInterval = *_poll_interval_msec
+		}
+		if len(_hosts) != 0 {
+			conf.Hosts = append(conf.Hosts, _hosts[:]...)
+		}
+
+		if _should_show_notifications != nil {
+			conf.ShowNotification = *_should_show_notifications
+		}
 	}
 
 	return &conf
@@ -295,19 +310,7 @@ func reloadConfig(old *Config) *Config {
 		return old
 	}
 
-	if _poll_interval_msec != nil {
-		read_conf.PollInterval = *_poll_interval_msec
-	}
-	if len(_hosts) != 0 {
-		read_conf.Hosts = append(read_conf.Hosts, _hosts[:]...)
-	}
-
-	if _should_show_notifications != nil {
-		read_conf.ShowNotification = *_should_show_notifications
-	}
-
 	_config_last_write = last_write
-	_should_watch_config = true
 	_config_did_change = false
 
 	return read_conf
