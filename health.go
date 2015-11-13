@@ -23,8 +23,8 @@ const (
 	WHITE  = "37"
 	GRAY   = "90"
 
-	MAX_STATS    = 1000
-	TIMEOUT_MSEC = 2000
+	MAX_STATS            = 1000
+	DEFAULT_TIMEOUT_MSEC = 5000
 )
 
 type hostData struct {
@@ -39,31 +39,45 @@ type hostData struct {
 var _lock *sync.Mutex = &sync.Mutex{}
 var _host_data map[string]*hostData = map[string]*hostData{}
 
+var _config_file_path *string
+var _poll_interval_msec *int
+var _should_show_notifications *bool
+var _hosts hostsFlag
+
+var _should_watch_config bool = false
+var _config_last_write *time.Time
+var _config_did_change bool = false
+
 func main() {
 	config := parseFlags()
 
-	longest_host_name := 0
-	for x := 0; x < len(config.Hosts); x++ {
-		l := len(config.Hosts[x])
-		if l > longest_host_name {
-			longest_host_name = l
-		}
-	}
-
-	for x := 0; x < len(config.Hosts); x++ {
-		host := config.Hosts[x]
-
-		_host_data[host] = &hostData{Host: host, Stats: &DurationQueue{}}
-		go pingServer(host, time.Duration(config.PollInterval)*time.Millisecond)
-	}
-
 	for {
-		clear()
+		longest_host_name := 0
 		for x := 0; x < len(config.Hosts); x++ {
-			status(longest_host_name, _host_data[config.Hosts[x]])
+			l := len(config.Hosts[x])
+			if l > longest_host_name {
+				longest_host_name = l
+			}
 		}
 
-		time.Sleep(500 * time.Millisecond)
+		for x := 0; x < len(config.Hosts); x++ {
+			host := config.Hosts[x]
+
+			_host_data[host] = &hostData{Host: host, Stats: &DurationQueue{}}
+			go pingServer(host, time.Duration(config.PollInterval)*time.Millisecond)
+		}
+
+		for !_config_did_change {
+			clear()
+			for x := 0; x < len(config.Hosts); x++ {
+				status(longest_host_name, _host_data[config.Hosts[x]])
+			}
+
+			checkConfig()
+			time.Sleep(500 * time.Millisecond)
+		}
+
+		config = reloadConfig(config)
 	}
 }
 
@@ -109,23 +123,24 @@ func pushError(host string, errorTime time.Time) {
 }
 
 func getEffectivePollInterval(poll_interval time.Duration) time.Duration {
-	effective_interval := time.Duration(0)
-	timeout_msec := TIMEOUT_MSEC * time.Millisecond
-	if timeout_msec > poll_interval {
-		effective_interval = timeout_msec
+	timeout_msec := DEFAULT_TIMEOUT_MSEC * time.Millisecond
+	if timeout_msec < poll_interval {
+		return timeout_msec
 	} else {
-		effective_interval = poll_interval
+		return poll_interval
 	}
-
-	return effective_interval
 }
 
 func pingServer(host string, poll_interval time.Duration) {
-	for {
+	effective_poll_interval := getEffectivePollInterval(poll_interval)
+	for !_config_did_change {
+
 		before := time.Now()
-		res, res_err := request.NewRequest().AsGet().WithUrl(host).FetchRawResponse()
+		res, res_err := request.NewRequest().AsGet().WithUrl(host).WithTimeout(effective_poll_interval).FetchRawResponse()
 		after := time.Now()
 		elapsed := after.Sub(before)
+
+		remaining_poll_interval := effective_poll_interval - elapsed
 
 		incrementPingCount(host)
 		if res_err != nil {
@@ -143,7 +158,7 @@ func pingServer(host string, poll_interval time.Duration) {
 			}
 		}
 
-		time.Sleep(getEffectivePollInterval(poll_interval))
+		time.Sleep(remaining_poll_interval)
 	}
 }
 
@@ -167,19 +182,21 @@ func status(host_width int, host_data *hostData) {
 
 	var full_text string
 	if is_up && host_data.Stats.Length > 1 {
+		count := host_data.PingCount
 		last := *host_data.Stats.PeekBack()
 		avg := host_data.Stats.Mean()
 		percentile_99 := host_data.Stats.Percentile(99.0)
 		percentile_90 := host_data.Stats.Percentile(90.0)
 		percentile_75 := host_data.Stats.Percentile(75.0)
 
-		full_text = fmt.Sprintf("%s %6s %s: %-6s %s: %-6s %s: %-7s %s: %-6s %s: %-6s", full_host, status, last_label, formatDuration(last), avg_label, formatDuration(avg), label_99th, formatDuration(percentile_99), label_90th, formatDuration(percentile_90), label_75th, formatDuration(percentile_75))
+		full_text = fmt.Sprintf("%s %6s (%d) %s: %-6s %s: %-6s %s: %-7s %s: %-6s %s: %-6s", full_host, status, count, last_label, formatDuration(last), avg_label, formatDuration(avg), label_99th, formatDuration(percentile_99), label_90th, formatDuration(percentile_90), label_75th, formatDuration(percentile_75))
 	} else if !is_up && host_data.DownAt != nil {
 		down_at := *host_data.DownAt
 		down_for := time.Now().Sub(down_at)
 		full_text = fmt.Sprintf("%s %6s Down For: %s", full_host, status, formatDuration(down_for))
 	} else if host_data.PingCount > 0 {
-		full_text = fmt.Sprintf("%s %6s %s: %-6s %s: %-6s %s: %-7s %s: %-6s %s: %-6s", full_host, status, last_label, "--", avg_label, "--", label_99th, "--", label_90th, "--", label_75th, "--")
+		count := host_data.PingCount
+		full_text = fmt.Sprintf("%s %6s (%d) %s: %-6s %s: %-6s %s: %-7s %s: %-6s %s: %-6s", full_host, status, count, last_label, "--", avg_label, "--", label_99th, "--", label_90th, "--", label_75th, "--")
 	} else {
 		full_text = fmt.Sprintf("%s %s", full_host, unknown_status)
 	}
@@ -208,52 +225,92 @@ type Config struct {
 	ShowNotification bool     `json:"show_notification"`
 }
 
-func loadFromPath(file_path string) (*Config, error) {
+func loadFromPath(file_path string) (*Config, *time.Time, error) {
 	var config Config
+	var last_write time.Time
+	if info, stat_err := os.Stat(file_path); stat_err == nil {
+		last_write = info.ModTime()
+	} else {
+		return &config, nil, stat_err
+	}
 
 	config_file, read_err := os.Open(file_path)
 	if read_err != nil {
-		return &config, read_err
+		return &config, &last_write, read_err
 	}
 
 	decoder := json.NewDecoder(config_file)
 	decode_err := decoder.Decode(&config)
 
-	return &config, decode_err
+	return &config, &last_write, decode_err
 }
 
 func parseFlags() *Config {
 
-	var poll_interval_msec int
-	flag.IntVar(&poll_interval_msec, "interval", 30000, "Server polling interval in milliseconds")
+	flag.Var(&_hosts, "host", "Host(s) to ping.")
 
-	var hosts hostsFlag
-	flag.Var(&hosts, "host", "Host(s) to ping.")
-
-	var show_notification bool
-	flag.BoolVar(&show_notification, "notification", true, "Show OS X Notification on `down`")
-
-	var config_file_path string
-	flag.StringVar(&config_file_path, "config", "", "Load configuration from a file.")
+	_poll_interval_msec = flag.Int("interval", 30000, "Server polling interval in milliseconds")
+	_should_show_notifications = flag.Bool("notification", true, "Show OS X Notification on `down`")
+	_config_file_path = flag.String("config", "", "Load configuration from a file.")
 
 	//parse the arguments
 	flag.Parse()
 
 	conf := Config{}
-	if config_file_path != "" {
-		read_conf, conf_err := loadFromPath(config_file_path)
+	if _config_file_path != nil {
+		read_conf, last_write, conf_err := loadFromPath(*_config_file_path)
 		if conf_err != nil {
 			fmt.Printf("%v\n", conf_err)
 			os.Exit(1)
 		}
+
+		_config_last_write = last_write
+		_should_watch_config = true
+		_config_did_change = false
+
 		conf = *read_conf
-	} else {
-		conf.PollInterval = poll_interval_msec
-		conf.Hosts = hosts[:]
-		conf.ShowNotification = show_notification
 	}
 
 	return &conf
+}
+
+func checkConfig() {
+	if _should_watch_config && _config_file_path != nil {
+		var last_write time.Time
+		if info, stat_err := os.Stat(*_config_file_path); stat_err == nil {
+			last_write = info.ModTime()
+
+			if _config_last_write != nil {
+				if last_write.After(*_config_last_write) {
+					_config_did_change = true
+				}
+			}
+		}
+	}
+}
+
+func reloadConfig(old *Config) *Config {
+	read_conf, last_write, conf_err := loadFromPath(*_config_file_path)
+	if conf_err != nil {
+		return old
+	}
+
+	if _poll_interval_msec != nil {
+		read_conf.PollInterval = *_poll_interval_msec
+	}
+	if len(_hosts) != 0 {
+		read_conf.Hosts = append(read_conf.Hosts, _hosts[:]...)
+	}
+
+	if _should_show_notifications != nil {
+		read_conf.ShowNotification = *_should_show_notifications
+	}
+
+	_config_last_write = last_write
+	_should_watch_config = true
+	_config_did_change = false
+
+	return read_conf
 }
 
 //********************************************************************************
