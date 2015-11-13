@@ -261,7 +261,7 @@ func parseFlags() *Config {
 	flag.Parse()
 
 	conf := Config{}
-	if _config_file_path != nil {
+	if _config_file_path != nil && *_config_file_path != "" {
 		read_conf, last_write, conf_err := loadFromPath(*_config_file_path)
 		if conf_err != nil {
 			fmt.Printf("%v\n", conf_err)
