@@ -45,10 +45,12 @@ Optionally you can create a config file with the following format:
 }
 ```
 
-Interval, by default, is set in milliseconds. 
+Interval is set in milliseconds. 
 
-You specify the config file when invoking via:
+You can specify the config file when invoking `health` as follows:
 
 ```bash
 > health --config my_config.json
 ```
+
+Note: changes to `my_config.json` will result in `health` reloading and resetting statistics. 
