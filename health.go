@@ -279,7 +279,7 @@ func formatDuration(d time.Duration) string {
 		seconds := d / time.Second
 		seconds_remainder := d - (seconds * time.Second)
 		milliseconds := seconds_remainder / time.Millisecond
-		return fmt.Sprintf("%ds%dms", seconds, milliseconds)
+		return fmt.Sprintf("%d.%ds", seconds, milliseconds)
 	} else if d > time.Millisecond {
 		milliseconds := d / time.Millisecond
 		return fmt.Sprintf("%dms", milliseconds)
