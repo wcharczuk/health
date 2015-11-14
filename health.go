@@ -5,12 +5,16 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log"
 	"math"
 	"os"
 	"os/exec"
 	"sort"
 	"sync"
 	"time"
+
+	"net/http"
+	_ "net/http/pprof"
 
 	"github.com/blendlabs/go-request"
 )
@@ -23,7 +27,7 @@ const (
 	WHITE  = "37"
 	GRAY   = "90"
 
-	MAX_STATS            = 1000
+	MAX_STATS            = 100
 	DEFAULT_TIMEOUT_MSEC = 5000
 )
 
@@ -31,7 +35,6 @@ type hostData struct {
 	Host      string
 	IsUp      bool
 	DownAt    *time.Time
-	Errors    []time.Time
 	Stats     *DurationQueue
 	PingCount int
 }
@@ -51,6 +54,10 @@ var _config_did_change bool = false
 func main() {
 	config := parseFlags()
 
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
+
 	for {
 		longest_host_name := 0
 		for x := 0; x < len(config.Hosts); x++ {
@@ -63,12 +70,14 @@ func main() {
 		latch := sync.WaitGroup{}
 		latch.Add(len(config.Hosts))
 
+		polling_interval := time.Duration(config.PollInterval) * time.Millisecond
 		for x := 0; x < len(config.Hosts); x++ {
 			host := config.Hosts[x]
+
 			_host_data[host] = &hostData{Host: host, Stats: &DurationQueue{}}
 
 			go func() {
-				pingServer(host, time.Duration(config.PollInterval)*time.Millisecond)
+				pingServer(host, polling_interval)
 				latch.Done()
 			}()
 		}
@@ -121,13 +130,6 @@ func pushStats(host string, elapsed time.Duration) {
 	}
 }
 
-func pushError(host string, errorTime time.Time) {
-	_lock.Lock()
-	defer _lock.Unlock()
-
-	_host_data[host].Errors = append(_host_data[host].Errors, errorTime)
-}
-
 func getEffectivePollInterval(poll_interval time.Duration) time.Duration {
 	timeout_msec := DEFAULT_TIMEOUT_MSEC * time.Millisecond
 	if timeout_msec < poll_interval {
@@ -149,18 +151,18 @@ func pingServer(host string, poll_interval time.Duration) {
 
 		incrementPingCount(host)
 		if res_err != nil {
-			pushError(host, time.Now())
 			setStatus(host, false)
 		} else {
-			defer res.Body.Close()
-
 			if res.StatusCode != 200 {
-				pushError(host, time.Now())
 				setStatus(host, false)
 			} else {
 				pushStats(host, elapsed)
 				setStatus(host, true)
 			}
+		}
+
+		if res != nil && res.Body != nil {
+			res.Body.Close()
 		}
 
 		time.Sleep(remaining_poll_interval)
@@ -416,11 +418,11 @@ func (dq *DurationQueue) ToArray() []time.Duration {
 
 func (dq *DurationQueue) Push(value time.Duration) {
 	new_node := durationNode{Value: value}
-	new_node.Next = dq.Tail
 
 	if dq.Tail != nil {
 		dq.Tail.Previous = &new_node
 	}
+	new_node.Next = dq.Tail
 
 	if dq.Head == nil {
 		dq.Head = &new_node
@@ -441,6 +443,8 @@ func (dq *DurationQueue) Pop() *time.Duration {
 	dq.Head = dq.Head.Previous
 	if dq.Head == nil {
 		dq.Tail = nil
+	} else {
+		dq.Head.Next = nil
 	}
 
 	dq.Length = dq.Length - 1

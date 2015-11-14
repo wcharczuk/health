@@ -51,6 +51,7 @@ func TestBasicOperations(t *testing.T) {
 	assert.NotNil(queue.Head)
 	assert.NotNil(queue.Head.Previous)
 	assert.NotNil(queue.Tail)
+	assert.Nil(queue.Head.Next)
 
 	second_value := queue.Pop()
 	assert.NotNil(second_value)
@@ -59,6 +60,7 @@ func TestBasicOperations(t *testing.T) {
 	assert.NotNil(queue.Head)
 	assert.NotNil(queue.Tail)
 	assert.Nil(queue.Head.Previous)
+	assert.Nil(queue.Head.Next)
 
 	third_value := queue.Pop()
 	assert.NotNil(third_value)
@@ -86,12 +88,8 @@ func TestStats(t *testing.T) {
 	queue.Push(1 * time.Second)
 
 	m := queue.Mean()
-	v := queue.Variance()
-	s := queue.StdDev()
 
 	assert.Equal(1*time.Second, m)
-	assert.Zero(v)
-	assert.Zero(s)
 }
 
 func TestStatsAdvanced(t *testing.T) {
