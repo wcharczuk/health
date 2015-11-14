@@ -5,16 +5,12 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"log"
 	"math"
 	"os"
 	"os/exec"
 	"sort"
 	"sync"
 	"time"
-
-	"net/http"
-	_ "net/http/pprof"
 
 	"github.com/blendlabs/go-request"
 )
@@ -53,10 +49,6 @@ var _config_did_change bool = false
 
 func main() {
 	config := parseFlags()
-
-	go func() {
-		log.Println(http.ListenAndServe("localhost:6060", nil))
-	}()
 
 	for {
 		longest_host_name := 0
