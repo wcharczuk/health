@@ -1,6 +1,8 @@
 #Health
 
-This is a simple healtcheck utility for OS-X / Linux only right now (no windows support right now because of ANSI clear code).
+Health is a simple commandline healtcheck utility that gives you basic stats about response times (last, average, 99th percentile, 90th percentile, 75th percentile).
+
+It is only for OS-X / Linux right now (no windows support because of the ANSI clear code used to wipe the console).
 
 ##Installation
 
@@ -20,15 +22,21 @@ Install using standard `go get && go install`. Make sure that your `$GOPATH/bin`
 
 Health will ping the servers every 30 seconds by default. If a server goes down it will raise a notification via AppleScript. 
 
+You can have multiple `--host` values:
+
+```bash
+> health --host <server> --host <another server> --host <yet another server>
+```
+
 ##Example Output:
 
 ```bash
-http://fooserver.com/status/postgres   UP Last: 164.018477ms Average: 274.073916ms StdDev: 110.055439ms
-http://barserver.com/status/postgres   UP Last: 733.29607ms  Average: 584.391811ms StdDev: 148.904259ms
-http://bazserver.com/status/postgres   UP Last: 155.562902ms Average: 296.666452ms StdDev: 141.10355ms
+http://fooserver.com/status/postgres   UP Last: 1ms    Average: 2ms    99th: 2ms     90th: 2ms    75th: 2ms
+http://barserver.com/status/postgres   UP Last: 1ms    Average: 2ms    99th: 3ms     90th: 2ms    75th: 2ms
+http://bazserver.com/status/postgres   UP Last: 1ms    Average: 2ms    99th: 4ms     90th: 2ms    75th: 1ms
 ```
 
-The screen will clear everytime the interval/2 timer fires, so you should always basically see that (the list of the servers you're monitoring).
+The screen will clear every 500ms. The polling interval will also be used as the timeout for the pings, with the difference between the elapsed time for the ping and the interval comprising the rest of the sleep time.
 
 ##Config File Format
 
