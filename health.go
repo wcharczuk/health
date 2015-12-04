@@ -32,6 +32,7 @@ type hostData struct {
 	IsUp      bool
 	DownAt    *time.Time
 	Stats     *DurationQueue
+	Error     error
 	PingCount int
 }
 
@@ -75,9 +76,22 @@ func main() {
 		}
 
 		for !_config_did_change {
+			didLabelError := false
 			clear()
 			for x := 0; x < len(config.Hosts); x++ {
 				status(longest_host_name, _host_data[config.Hosts[x]])
+			}
+
+			for x := 0; x < len(config.Hosts); x++ {
+				host := config.Hosts[x]
+				hostError := _host_data[host].Error
+
+				if hostError != nil && !didLabelError {
+					fmt.Printf("\n%s\n", color("Errors:", RED))
+					didLabelError = true
+				}
+
+				showError(host, hostError)
 			}
 			time.Sleep(500 * time.Millisecond)
 			checkConfig()
@@ -122,6 +136,13 @@ func pushStats(host string, elapsed time.Duration) {
 	}
 }
 
+func pushError(host string, err error) {
+	_lock.Lock()
+	defer _lock.Unlock()
+
+	_host_data[host].Error = err
+}
+
 func getEffectivePollInterval(poll_interval time.Duration) time.Duration {
 	timeout_msec := DEFAULT_TIMEOUT_MSEC * time.Millisecond
 	if timeout_msec < poll_interval {
@@ -144,7 +165,9 @@ func pingServer(host string, poll_interval time.Duration) {
 		incrementPingCount(host)
 		if res_err != nil {
 			setStatus(host, false)
+			pushError(host, res_err)
 		} else {
+			pushError(host, nil)
 			if res.StatusCode != 200 {
 				setStatus(host, false)
 			} else {
@@ -202,6 +225,12 @@ func status(host_width int, host_data *hostData) {
 	fmt.Println(full_text)
 }
 
+func showError(host string, err error) {
+	if err != nil {
+		fmt.Printf("%s: %s\n", host, err.Error())
+	}
+}
+
 //********************************************************************************
 // Console Arguments / Config
 //********************************************************************************
@@ -221,6 +250,7 @@ type Config struct {
 	PollInterval     int      `json:"interval"`
 	Hosts            []string `json:"hosts"`
 	ShowNotification bool     `json:"show_notification"`
+	Verbose          bool     `json:"verbose"`
 }
 
 func loadFromPath(file_path string) (*Config, *time.Time, error) {
