@@ -5,13 +5,19 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
+	"io/ioutil"
+	"log"
 	"math"
+	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"sort"
 	"sync"
 	"time"
 
+	"github.com/blendlabs/go-exception"
 	"github.com/blendlabs/go-request"
 )
 
@@ -38,6 +44,8 @@ type hostData struct {
 
 var _lock *sync.Mutex = &sync.Mutex{}
 var _host_data map[string]*hostData = map[string]*hostData{}
+var _transportsLock *sync.Mutex = &sync.Mutex{}
+var _transports map[string]*http.Transport = map[string]*http.Transport{}
 
 var _config_file_path *string
 var _poll_interval_msec *int
@@ -47,6 +55,8 @@ var _hosts hostsFlag
 var _should_watch_config bool = false
 var _config_last_write *time.Time
 var _config_did_change bool = false
+
+var _logger *log.Logger
 
 func main() {
 	config := parseFlags()
@@ -156,7 +166,27 @@ func pingServer(host string, poll_interval time.Duration) {
 	effective_poll_interval := getEffectivePollInterval(poll_interval)
 	for !_config_did_change {
 		before := time.Now()
-		res, res_err := request.NewRequest().AsGet().WithUrl(host).WithTimeout(effective_poll_interval).FetchRawResponse()
+		req := request.NewRequest().AsGet().WithKeepAlives().WithUrl(host).WithTimeout(effective_poll_interval)
+		if hasTransportForHost(host) {
+			transport, _ := getTransportForHost(host)
+			req = req.WithTransport(transport)
+		} else {
+			req = req.WithCreateTransportHook(func(h url.URL, t *http.Transport) {
+				addTransportForHost(h, t)
+			})
+		}
+
+		if _logger != nil {
+			req = req.WithLogger(request.HTTPREQUEST_LOG_LEVEL_DEBUG, _logger)
+		}
+
+		res, res_err := req.FetchRawResponse()
+
+		if res != nil && res.Body != nil {
+			io.Copy(ioutil.Discard, res.Body)
+			res.Body.Close()
+		}
+
 		after := time.Now()
 		elapsed := after.Sub(before)
 
@@ -167,20 +197,48 @@ func pingServer(host string, poll_interval time.Duration) {
 			setStatus(host, false)
 			pushError(host, res_err)
 		} else {
-			pushError(host, nil)
 			if res.StatusCode != 200 {
 				setStatus(host, false)
+				pushError(host, exception.Newf("Non 200 Status Returned: %d", res.StatusCode))
 			} else {
 				pushStats(host, elapsed)
 				setStatus(host, true)
 			}
 		}
 
-		if res != nil && res.Body != nil {
-			res.Body.Close()
-		}
-
 		time.Sleep(remaining_poll_interval)
+	}
+}
+
+func hasTransportForHost(host string) bool {
+	_transportsLock.Lock()
+	defer _transportsLock.Unlock()
+
+	hostUrl, _ := url.Parse(host)
+	hostKey := fmt.Sprintf("%s://%s", hostUrl.Scheme, hostUrl.Host)
+	_, hasTransport := _transports[hostKey]
+	return hasTransport
+}
+
+func getTransportForHost(host string) (*http.Transport, error) {
+	_transportsLock.Lock()
+	defer _transportsLock.Unlock()
+
+	hostUrl, _ := url.Parse(host)
+	hostKey := fmt.Sprintf("%s://%s", hostUrl.Scheme, hostUrl.Host)
+	if transport, hasTransport := _transports[hostKey]; hasTransport {
+		return transport, nil
+	}
+	return nil, nil
+}
+
+func addTransportForHost(hostUrl url.URL, transport *http.Transport) {
+	_transportsLock.Lock()
+	defer _transportsLock.Unlock()
+
+	hostKey := fmt.Sprintf("%s://%s", hostUrl.Scheme, hostUrl.Host)
+	if _, hasTransport := _transports[hostKey]; !hasTransport {
+		_transports[hostKey] = transport
 	}
 }
 
