@@ -166,18 +166,20 @@ func pingServer(host string, poll_interval time.Duration) {
 	effective_poll_interval := getEffectivePollInterval(poll_interval)
 	for !_config_did_change {
 		before := time.Now()
-		req := request.NewRequest().AsGet().WithKeepAlives().WithUrl(host).WithTimeout(effective_poll_interval)
+		req := request.NewHTTPRequest().AsGet().WithKeepAlives().WithURL(host).WithTimeout(effective_poll_interval)
 		if hasTransportForHost(host) {
 			transport, _ := getTransportForHost(host)
 			req = req.WithTransport(transport)
 		} else {
-			req = req.WithCreateTransportHook(func(h url.URL, t *http.Transport) {
-				addTransportForHost(h, t)
+			req = req.OnCreateTransport(func(h *url.URL, t *http.Transport) {
+				if h != nil {
+					addTransportForHost(*h, t)
+				}
 			})
 		}
 
 		if _logger != nil {
-			req = req.WithLogger(request.HTTPREQUEST_LOG_LEVEL_DEBUG, _logger)
+			req = req.WithLogger(request.HTTPRequestLogLevelDebug, _logger)
 		}
 
 		res, res_err := req.FetchRawResponse()
