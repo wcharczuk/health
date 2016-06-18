@@ -68,7 +68,9 @@ func (h *Host) SetUp() {
 
 // SetDown sets a host as down.
 func (h *Host) SetDown(at time.Time) {
-	h.downAt = util.OptionalTime(at)
+	if h.downAt == nil {
+		h.downAt = util.OptionalTime(at)
+	}
 }
 
 // AddTiming adds a timing to the stats collection.
