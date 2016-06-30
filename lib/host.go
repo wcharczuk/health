@@ -20,6 +20,7 @@ var (
 	label75th     = util.Color("75th", util.ColorLightBlack)
 	labelAverage  = util.Color("Average", util.ColorLightBlack)
 	labelLast     = util.Color("Last", util.ColorLightBlack)
+	labelUptime   = util.Color("Uptime", util.ColorLightBlack)
 	unknownStatus = util.Color("UNKNOWN", util.ColorLightBlack)
 	statusUP      = util.Color("UP", util.ColorGreen)
 	statusDOWN    = util.Color("DOWN", util.ColorRed)
@@ -29,17 +30,20 @@ var (
 func NewHost(host string, timeout Duration, maxStats int) *Host {
 	hostURL, _ := url.Parse(host)
 	return &Host{
-		url:      hostURL,
-		maxStats: maxStats,
-		timeout:  timeout,
-		stats:    collections.NewRingBufferWithCapacity(maxStats),
+		url:       hostURL,
+		maxStats:  maxStats,
+		timeout:   timeout,
+		startedAt: time.Now().UTC(),
+		stats:     collections.NewRingBufferWithCapacity(maxStats),
 	}
 }
 
 // Host is a server to ping
 type Host struct {
 	url       *url.URL
+	startedAt time.Time
 	downAt    *time.Time
+	downtime  time.Duration
 	stats     collections.Queue
 	transport *http.Transport
 	timeout   Duration
@@ -61,8 +65,20 @@ func (h Host) IsUp() bool {
 	return h.downAt == nil
 }
 
+// TotalDowntime returns the total downtime including a current down window.
+func (h *Host) TotalDowntime() time.Duration {
+	dt := h.downtime
+	if h.downAt != nil {
+		dt += time.Now().UTC().Sub(*h.downAt)
+	}
+	return dt
+}
+
 // SetUp sets a host as up.
 func (h *Host) SetUp() {
+	if h.downAt != nil {
+		h.downtime += time.Now().UTC().Sub(*h.downAt)
+	}
 	h.downAt = nil
 }
 
@@ -153,15 +169,35 @@ func (h Host) Percentile(percentile float64) time.Duration {
 // Status returns the status line for the host.
 func (h Host) Status(hostWidth int) string {
 	host := util.ColorFixedWidthLeftAligned(h.url.String(), util.ColorReset, hostWidth+2)
+
+	uptimePCT := 1.0
+	if h.downtime > 0 {
+		uptimePCT = float64(h.TotalDowntime()) / float64(time.Now().UTC().Sub(h.startedAt))
+	}
+	uptimeText := fmt.Sprintf("%0.1f", uptimePCT*100)
+
+	if uptimePCT > 0.995 {
+		uptimeText = util.Color(uptimeText, util.ColorGreen)
+	} else if uptimePCT > 0.990 {
+		uptimeText = util.Color(uptimeText, util.ColorLightGreen)
+	} else if uptimePCT > 0.95 {
+		uptimeText = util.Color(uptimeText, util.ColorYellow)
+	} else {
+		uptimeText = util.Color(uptimeText, util.ColorRed)
+	}
+	uptimeText = fmt.Sprintf("(%s)", uptimeText)
+
 	if h.IsUp() && h.stats.Len() > 1 {
 		last := h.stats.PeekBack()
 		avg := h.Mean()
 		p99 := h.Percentile(99.0)
 		p90 := h.Percentile(90.0)
 		p75 := h.Percentile(75.0)
+
 		return fmt.Sprintf(
-			"%s %6s %s: %-6s %s: %-6s %s: %-7s %s: %-6s %s: %-6s",
+			"%s %6s %-6s %s: %-6s %s: %-6s %s: %-7s %s: %-6s %s: %-6s",
 			host, statusUP,
+			uptimeText,
 			labelLast, FormatDuration(RoundDuration(last.(time.Duration), time.Millisecond)),
 			labelAverage, FormatDuration(RoundDuration(avg, time.Millisecond)),
 			label99th, FormatDuration(RoundDuration(p99, time.Millisecond)),
@@ -170,7 +206,7 @@ func (h Host) Status(hostWidth int) string {
 		)
 	} else if !h.IsUp() {
 		downFor := time.Now().Sub(*h.downAt)
-		return fmt.Sprintf("%s %6s Down For: %s", host, statusDOWN, FormatDuration(downFor))
+		return fmt.Sprintf("%s %6s %-6s Down For: %s", host, statusDOWN, uptimeText, FormatDuration(downFor))
 	}
 	return fmt.Sprintf("%s %s", host, unknownStatus)
 }
