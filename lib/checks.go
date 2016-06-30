@@ -39,6 +39,11 @@ type Checks struct {
 	lock           *sync.RWMutex
 }
 
+// Hosts returns the hosts for the checks collection.
+func (c Checks) Hosts() []*Host {
+	return c.hosts
+}
+
 // OnInterval registers a hook to be run before the ping sleep.
 func (c *Checks) OnInterval(action CheckIntervalAction) {
 	c.intervalAction = action
