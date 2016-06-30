@@ -93,6 +93,8 @@ func doPing(h *Host) {
 	elapsed, err := h.Ping()
 	if err != nil {
 		h.SetDown(time.Now())
+	} else {
+		h.SetUp()
 	}
 	h.AddTiming(elapsed)
 }
