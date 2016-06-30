@@ -2,8 +2,6 @@ package health
 
 import (
 	"fmt"
-	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"sort"
@@ -74,6 +72,11 @@ func (h *Host) TotalDowntime() time.Duration {
 	return dt
 }
 
+// TotalTime returns the total time the check has been active for.
+func (h *Host) TotalTime() time.Duration {
+	return time.Now().UTC().Sub(h.startedAt)
+}
+
 // SetUp sets a host as up.
 func (h *Host) SetUp() {
 	if h.downAt != nil {
@@ -114,15 +117,14 @@ func (h *Host) Ping() (time.Duration, error) {
 		})
 	}
 
-	res, err := req.FetchRawResponse()
+	meta, err := req.ExecuteWithMeta()
 
 	if err != nil {
 		return time.Now().Sub(begin), err
 	}
 
-	if res != nil && res.Body != nil {
-		io.Copy(ioutil.Discard, res.Body)
-		res.Body.Close()
+	if meta.StatusCode > http.StatusOK {
+		return time.Now().Sub(begin), fmt.Errorf("Non-200 returned from endpoint.")
 	}
 
 	return time.Now().Sub(begin), nil
@@ -130,8 +132,9 @@ func (h *Host) Ping() (time.Duration, error) {
 
 // Mean returns the average duration.
 func (h Host) Mean() time.Duration {
+	// we use a separate sum function because ring buffers
+	// are not rangable.
 	var accum time.Duration
-
 	h.stats.Each(func(v interface{}) {
 		accum += v.(time.Duration)
 	})
@@ -171,8 +174,9 @@ func (h Host) Status(hostWidth int) string {
 	host := util.ColorFixedWidthLeftAligned(h.url.String(), util.ColorReset, hostWidth+2)
 
 	uptimePCT := 1.0
-	if h.downtime > 0 {
-		uptimePCT = float64(h.TotalDowntime()) / float64(time.Now().UTC().Sub(h.startedAt))
+	if h.TotalDowntime() > 0 {
+		totalTimeElapsed := time.Now().UTC().Sub(h.startedAt)
+		uptimePCT = float64(totalTimeElapsed-h.TotalDowntime()) / float64(totalTimeElapsed)
 	}
 	uptimeText := fmt.Sprintf("%0.1f", uptimePCT*100)
 

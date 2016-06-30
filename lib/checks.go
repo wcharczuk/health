@@ -92,8 +92,10 @@ func (c *Checks) Status() string {
 func doPing(h *Host) {
 	elapsed, err := h.Ping()
 	if err != nil {
+		//println(h.url.String(), util.Color("down", util.ColorRed), h.TotalDowntime(), h.TotalTime())
 		h.SetDown(time.Now())
 	} else {
+		//println(h.url.String(), util.Color("up", util.ColorGreen), h.TotalDowntime(), h.TotalTime())
 		h.SetUp()
 	}
 	h.AddTiming(elapsed)
