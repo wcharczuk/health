@@ -11,9 +11,9 @@ const (
 	// DefaultMaxStats is the default number of deltas to keep per host.
 	DefaultMaxStats = 128
 	// DefaultPingTimeout is the connection timeout.
-	DefaultPingTimeout = 1000 * time.Millisecond
+	DefaultPingTimeout = Duration(1000 * time.Millisecond)
 	//DefaultPollInterval is the default time between pings.
-	DefaultPollInterval = 2000 * time.Millisecond
+	DefaultPollInterval = Duration(2000 * time.Millisecond)
 )
 
 // NewConfigFromFlags returns a new config object by parsing flags.
@@ -28,12 +28,12 @@ func NewConfigFromFlags() (*Config, error) {
 
 // Config is the healthcheck configuration.
 type Config struct {
-	PingTimeout      time.Duration `json:"ping_timeout"`
-	MaxStats         int           `json:"max_stats"`
-	PollInterval     time.Duration `json:"interval"`
-	Hosts            []string      `json:"hosts"`
-	ShowNotification bool          `json:"show_notification"`
-	Verbose          bool          `json:"verbose"`
+	PingTimeout      Duration `json:"ping_timeout"`
+	MaxStats         int      `json:"max_stats"`
+	PollInterval     Duration `json:"interval"`
+	Hosts            []string `json:"hosts"`
+	ShowNotification bool     `json:"show_notification"`
+	Verbose          bool     `json:"verbose"`
 }
 
 // LoadFromPath loads a config from a path.
@@ -67,7 +67,7 @@ func (c *Config) ParseFlags() error {
 		return c.LoadFromPath(*configFilePath)
 	}
 	if pollInterval != nil {
-		c.PollInterval = time.Duration(*pollInterval) * time.Millisecond
+		c.PollInterval = Duration(time.Duration(*pollInterval) * time.Millisecond)
 	}
 	if len(hosts) != 0 {
 		c.Hosts = append(c.Hosts, hosts...)

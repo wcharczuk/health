@@ -26,7 +26,7 @@ var (
 )
 
 // NewHost returns a new host.
-func NewHost(host string, timeout time.Duration, maxStats int) *Host {
+func NewHost(host string, timeout Duration, maxStats int) *Host {
 	hostURL, _ := url.Parse(host)
 	return &Host{
 		url:      hostURL,
@@ -42,12 +42,12 @@ type Host struct {
 	downAt    *time.Time
 	stats     collections.Queue
 	transport *http.Transport
-	timeout   time.Duration
+	timeout   Duration
 	maxStats  int
 }
 
 // SetTimeout sets the timeout used by `ping`.
-func (h *Host) SetTimeout(timeout time.Duration) {
+func (h *Host) SetTimeout(timeout Duration) {
 	h.timeout = timeout
 }
 
@@ -88,7 +88,7 @@ func (h *Host) Ping() (time.Duration, error) {
 		AsGet().
 		WithKeepAlives().
 		WithURL(h.url.String()).
-		WithTimeout(h.timeout)
+		WithTimeout(h.timeout.AsDuration())
 
 	if h.transport != nil {
 		req = req.WithTransport(h.transport)
@@ -162,11 +162,11 @@ func (h Host) Status(hostWidth int) string {
 		return fmt.Sprintf(
 			"%s %6s %s: %-6s %s: %-6s %s: %-7s %s: %-6s %s: %-6s",
 			host, statusUP,
-			labelLast, FormatDuration(last.(time.Duration)),
-			labelAverage, FormatDuration(avg),
-			label99th, FormatDuration(p99),
-			label90th, FormatDuration(p90),
-			label75th, FormatDuration(p75),
+			labelLast, FormatDuration(RoundDuration(last.(time.Duration), time.Millisecond)),
+			labelAverage, FormatDuration(RoundDuration(avg, time.Millisecond)),
+			label99th, FormatDuration(RoundDuration(p99, time.Millisecond)),
+			label90th, FormatDuration(RoundDuration(p90, time.Millisecond)),
+			label75th, FormatDuration(RoundDuration(p75, time.Millisecond)),
 		)
 	} else if !h.IsUp() {
 		downFor := time.Now().Sub(*h.downAt)

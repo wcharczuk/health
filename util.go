@@ -3,18 +3,46 @@ package health
 import (
 	"fmt"
 	"math"
+	"strconv"
 	"time"
 )
 
-// AverageDuration returns the average of a list of durations.
-func AverageDuration(durations ...time.Duration) time.Duration {
-	var accum time.Duration
+// Duration implements a custom json marshaller.
+type Duration time.Duration
 
+// AsDuration returns the duration as a time.Duration.
+func (d Duration) AsDuration() time.Duration {
+	return time.Duration(d)
+}
+
+// MarshalJSON marshals the Duration using `FormatDuration`.
+func (d Duration) MarshalJSON() ([]byte, error) {
+	return []byte(FormatDuration(d.AsDuration())), nil
+}
+
+// UnmarshalJSON parses a duration string from a json blob.
+func (d *Duration) UnmarshalJSON(data []byte) error {
+	return nil
+}
+
+// RoundTo calls `RoundDuration` for the Duration.
+func (d Duration) RoundTo(roundTo time.Duration) time.Duration {
+	return RoundDuration(time.Duration(d), roundTo)
+}
+
+// SumDurations returns the sum of a given variadic set of durations.
+func SumDurations(durations ...time.Duration) time.Duration {
+	var accum time.Duration
 	for _, d := range durations {
 		accum += d
 	}
+	return accum
+}
 
-	return accum / time.Duration(len(durations))
+// AverageDuration returns the average of a list of durations.
+func AverageDuration(durations ...time.Duration) time.Duration {
+	total := SumDurations(durations...)
+	return total / time.Duration(len(durations))
 }
 
 // MinDuration returns the smallest duration.
@@ -39,32 +67,144 @@ func MaxDuration(durations ...time.Duration) time.Duration {
 	return max
 }
 
+// ExplodeDuration returns all the constitent parts of a time.Duration.
+func ExplodeDuration(duration time.Duration) (
+	hours time.Duration,
+	minutes time.Duration,
+	seconds time.Duration,
+	milliseconds time.Duration,
+	microseconds time.Duration,
+) {
+	hours = duration / time.Hour
+	hoursRemainder := duration - (hours * time.Hour)
+	minutes = hoursRemainder / time.Minute
+	minuteRemainder := hoursRemainder - (minutes * time.Minute)
+	seconds = minuteRemainder / time.Second
+	secondsRemainder := minuteRemainder - (seconds * time.Second)
+	milliseconds = secondsRemainder / time.Millisecond
+	millisecondsRemainder := secondsRemainder - (milliseconds * time.Millisecond)
+	microseconds = millisecondsRemainder / time.Microsecond
+	return
+}
+
 // FormatDuration prints a duration as a string.
-func FormatDuration(d time.Duration) string {
-	if d > time.Hour {
-		hours := d / time.Hour
-		hoursRemainder := d - (hours * time.Hour)
-		minutes := hoursRemainder / time.Minute
-		minuteRemainder := hoursRemainder - (minutes * time.Minute)
-		seconds := minuteRemainder / time.Second
-		return fmt.Sprintf("%dh%dm%ds", hours, minutes, seconds)
-	} else if d > time.Minute {
-		minutes := d / time.Minute
-		minuteRemainder := d - (minutes * time.Minute)
-		seconds := minuteRemainder / time.Second
-		return fmt.Sprintf("%dm%ds", minutes, seconds)
-	} else if d > time.Second {
-		seconds := d / time.Second
-		secondsRemainder := d - (seconds * time.Second)
-		milliseconds := secondsRemainder / time.Millisecond
-		return fmt.Sprintf("%d.%ds", seconds, milliseconds)
-	} else if d > time.Millisecond {
-		milliseconds := d / time.Millisecond
-		return fmt.Sprintf("%dms", milliseconds)
-	} else {
-		microseconds := d / time.Microsecond
-		return fmt.Sprintf("%dµs", microseconds)
+func FormatDuration(duration time.Duration) string {
+	hours, minutes, seconds, milliseconds, microseconds := ExplodeDuration(duration)
+	var value string
+	if hours > 0 {
+		value = fmt.Sprintf("%dh", hours)
 	}
+	if minutes > 0 {
+		value = value + fmt.Sprintf("%dm", minutes)
+	}
+	if seconds > 0 {
+		value = value + fmt.Sprintf("%ds", seconds)
+	}
+	if milliseconds > 0 {
+		value = value + fmt.Sprintf("%dms", milliseconds)
+	}
+	if microseconds > 0 {
+		value = value + fmt.Sprintf("%dµs", microseconds)
+	}
+	return value
+}
+
+// RoundDuration rounds a duration to the given place.
+func RoundDuration(duration, roundTo time.Duration) time.Duration {
+	hours, minutes, seconds, milliseconds, microseconds := ExplodeDuration(duration)
+	hours = hours * time.Hour
+	minutes = minutes * time.Minute
+	seconds = seconds * time.Second
+	milliseconds = milliseconds * time.Millisecond
+	microseconds = microseconds * time.Microsecond
+
+	var total time.Duration
+	if hours >= roundTo {
+		total = total + hours
+	}
+	if minutes >= roundTo {
+		total = total + minutes
+	}
+	if seconds >= roundTo {
+		total = total + seconds
+	}
+	if milliseconds >= roundTo {
+		total = total + milliseconds
+	}
+	if microseconds >= roundTo {
+		total = total + microseconds
+	}
+
+	return total
+}
+
+// ParseDuration reverses `FormatDuration`.
+func ParseDuration(duration string) time.Duration {
+	integerValue, err := strconv.ParseInt(duration, 10, 64)
+	if err == nil {
+		println("passes parseint")
+		return time.Duration(integerValue)
+	}
+
+	var hours int64
+	var minutes int64
+	var seconds int64
+	var milliseconds int64
+	var microseconds int64
+
+	state := 0
+	lastIndex := len([]rune(duration)) - 1
+
+	var numberValue string
+	var labelValue string
+
+	var consumeValues = func() {
+		switch labelValue {
+		case "h":
+			hours = ParseInt64(numberValue)
+		case "m":
+			minutes = ParseInt64(numberValue)
+		case "s":
+			seconds = ParseInt64(numberValue)
+		case "ms":
+			milliseconds = ParseInt64(numberValue)
+		case "µs":
+			microseconds = ParseInt64(numberValue)
+		}
+	}
+
+	for index, c := range []rune(duration) {
+		switch state {
+		case 0:
+			if IsNumber(c) {
+				numberValue = numberValue + string(c)
+			} else {
+				labelValue = string(c)
+				if index == lastIndex {
+					consumeValues()
+				} else {
+					state = 1
+				}
+			}
+		case 1:
+			if IsNumber(c) {
+				consumeValues()
+				numberValue = string(c)
+				state = 0
+			} else if index == lastIndex {
+				labelValue = labelValue + string(c)
+				consumeValues()
+			} else {
+				labelValue = labelValue + string(c)
+			}
+		}
+	}
+
+	return (time.Duration(hours) * time.Hour) +
+		(time.Duration(minutes) * time.Minute) +
+		(time.Duration(seconds) * time.Second) +
+		(time.Duration(milliseconds) * time.Millisecond) +
+		(time.Duration(microseconds) * time.Microsecond)
 }
 
 // Round rounds  a float to a given places.
@@ -123,4 +263,18 @@ func (dl durations) Less(i, j int) bool {
 
 func (dl durations) Swap(i, j int) {
 	dl[i], dl[j] = dl[j], dl[i]
+}
+
+// IsNumber returns if a rune is in the number range.
+func IsNumber(c rune) bool {
+	return c >= rune('0') && c <= rune('9')
+}
+
+// ParseInt64 parses an int64
+func ParseInt64(input string) int64 {
+	result, err := strconv.ParseInt(input, 10, 64)
+	if err != nil {
+		return int64(0)
+	}
+	return result
 }
