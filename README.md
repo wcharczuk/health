@@ -31,9 +31,9 @@ You can have multiple `--host` values:
 ##Example Output:
 
 ```bash
-http://fooserver.com/status/postgres   UP Last: 1ms    Average: 2ms    99th: 2ms     90th: 2ms    75th: 2ms
-http://barserver.com/status/postgres   UP Last: 1ms    Average: 2ms    99th: 3ms     90th: 2ms    75th: 2ms
-http://bazserver.com/status/postgres   UP Last: 1ms    Average: 2ms    99th: 4ms     90th: 2ms    75th: 1ms
+http://fooserver.com/status/postgres   UP (100.0) Last: 1ms    Average: 2ms    99th: 2ms     90th: 2ms    75th: 2ms
+http://barserver.com/status/postgres   UP (100.0) Last: 1ms    Average: 2ms    99th: 3ms     90th: 2ms    75th: 2ms
+http://bazserver.com/status/postgres   UP (100.0) Last: 1ms    Average: 2ms    99th: 4ms     90th: 2ms    75th: 1ms
 ```
 
 The screen will clear every 500ms. The polling interval will also be used as the timeout for the pings, with the difference between the elapsed time for the ping and the interval comprising the rest of the sleep time.
