@@ -44,7 +44,7 @@ Optionally you can create a config file with the following format:
 
 ```json
 {
-  "interval": 30000,
+  "interval": "30s",
   "show_notification": true,
   "hosts": [
     "http://www.google.com",
