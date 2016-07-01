@@ -20,7 +20,7 @@ Install using standard `go get && go install`. Make sure that your `$GOPATH/bin`
 > health --host <server>
 ```
 
-Health will ping the servers every 30 seconds by default. If a server goes down it will raise a notification via AppleScript. 
+Health will ping the servers every 30 seconds by default.
 
 You can have multiple `--host` values:
 
