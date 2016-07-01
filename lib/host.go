@@ -178,7 +178,12 @@ func (h Host) Status(hostWidth int) string {
 		totalTimeElapsed := time.Now().UTC().Sub(h.startedAt)
 		uptimePCT = float64(totalTimeElapsed-h.TotalDowntime()) / float64(totalTimeElapsed)
 	}
-	uptimeText := fmt.Sprintf("%0.1f", uptimePCT*100)
+	var uptimeText string
+	if uptimePCT < 1.0 {
+		uptimeText = fmt.Sprintf("%0.3f", uptimePCT*100)
+	} else {
+		uptimeText = fmt.Sprintf("%d", int(uptimePCT*100))
+	}
 
 	if uptimePCT > 0.995 {
 		uptimeText = util.Color(uptimeText, util.ColorGreen)
