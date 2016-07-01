@@ -1,6 +1,6 @@
 #Health
 
-Health is a simple commandline healtcheck utility that gives you basic stats about response times (last, average, 99th percentile, 90th percentile, 75th percentile).
+Health is a simple commandline healtcheck utility that gives you basic stats about response times (uptime %, last, average, 99th percentile, 90th percentile, 75th percentile).
 
 It is only for OS-X / Linux right now (no windows support because of the ANSI clear code used to wipe the console).
 
