@@ -56,7 +56,7 @@ func (c *Config) ParseFlags() error {
 	var hosts HostsFlag
 	flag.Var(&hosts, "host", "Host(s) to ping.")
 
-	pollInterval := flag.Int("interval", 30000, "Server polling interval in milliseconds")
+	pollInterval := flag.Int("interval", int(DefaultPollInterval.AsTimeDuration()/time.Millisecond), "Server polling interval in milliseconds")
 	showNotifications := flag.Bool("notification", true, "Show OS X Notification on `down`")
 	configFilePath := flag.String("config", "", "Load configuration from a file.")
 

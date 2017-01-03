@@ -52,3 +52,9 @@ func TestRoundDuration(t *testing.T) {
 	assert := assert.New(t)
 	assert.Equal(time.Millisecond, RoundDuration(time.Millisecond+time.Microsecond, time.Millisecond))
 }
+
+func TestFormatSparklines(t *testing.T) {
+	assert := assert.New(t)
+
+	assert.Equal("▇▅▃▂▁", FormatSparklines([]float64{0.9, 0.7, 0.5, 0.3, 0.1}))
+}

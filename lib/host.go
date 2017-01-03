@@ -1,6 +1,7 @@
 package health
 
 import (
+	"bytes"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -13,27 +14,30 @@ import (
 )
 
 var (
-	label99th     = util.Color("99th", util.ColorLightBlack)
-	label90th     = util.Color("90th", util.ColorLightBlack)
-	label75th     = util.Color("75th", util.ColorLightBlack)
-	labelAverage  = util.Color("Average", util.ColorLightBlack)
-	labelLast     = util.Color("Last", util.ColorLightBlack)
-	labelUptime   = util.Color("Uptime", util.ColorLightBlack)
-	unknownStatus = util.Color("UNKNOWN", util.ColorLightBlack)
-	statusUP      = util.Color("UP", util.ColorGreen)
-	statusDOWN    = util.Color("DOWN", util.ColorRed)
+	label99th     = util.ColorLightBlack.Apply("99th")
+	label90th     = util.ColorLightBlack.Apply("90th")
+	label75th     = util.ColorLightBlack.Apply("75th")
+	labelAverage  = util.ColorLightBlack.Apply("Average")
+	labelLast     = util.ColorLightBlack.Apply("Last")
+	labelUptime   = util.ColorLightBlack.Apply("Uptime")
+	unknownStatus = util.ColorLightBlack.Apply("UNKNOWN")
+	statusUP      = util.ColorGreen.Apply("UP")
+	statusDOWN    = util.ColorRed.Apply("DOWN")
 )
 
 // NewHost returns a new host.
-func NewHost(host string, timeout Duration, maxStats int) *Host {
-	hostURL, _ := url.Parse(host)
+func NewHost(host string, timeout Duration, maxStats int) (*Host, error) {
+	hostURL, err := url.Parse(host)
+	if err != nil {
+		return nil, err
+	}
 	return &Host{
 		url:       hostURL,
 		maxStats:  maxStats,
 		timeout:   timeout,
 		startedAt: time.Now().UTC(),
 		stats:     collections.NewRingBufferWithCapacity(maxStats),
-	}
+	}, nil
 }
 
 // Host is a server to ping
@@ -44,6 +48,7 @@ type Host struct {
 	downtime  time.Duration
 	stats     collections.Queue
 	transport *http.Transport
+	req       *request.HTTPRequest
 	timeout   Duration
 	maxStats  int
 }
@@ -100,31 +105,40 @@ func (h *Host) AddTiming(elapsed time.Duration) {
 	h.stats.Enqueue(elapsed)
 }
 
-// Ping pings a host and returns the elapsed time and any errors.
-func (h *Host) Ping() (time.Duration, error) {
-	begin := time.Now()
+func (h *Host) ensureRequest() *request.HTTPRequest {
+	if h.req != nil {
+		if h.transport != nil {
+			return h.req.WithTransport(h.transport)
+		}
+		return h.req
+	}
+
 	req := request.NewHTTPRequest().
 		AsGet().
 		WithKeepAlives().
 		WithURL(h.url.String()).
-		WithTimeout(h.timeout.AsDuration())
+		WithTimeout(h.timeout.AsTimeDuration())
 
-	if h.transport != nil {
-		req = req.WithTransport(h.transport)
-	} else {
-		req = req.OnCreateTransport(func(_ *url.URL, t *http.Transport) {
-			h.transport = t
-		})
-	}
+	req = req.OnCreateTransport(func(_ *url.URL, t *http.Transport) {
+		h.transport = t
+	})
 
+	h.req = req
+	return req
+}
+
+// Ping pings a host and returns the elapsed time and any errors.
+func (h *Host) Ping() (time.Duration, error) {
+	req := h.ensureRequest()
+
+	begin := time.Now()
 	meta, err := req.ExecuteWithMeta()
-
 	if err != nil {
 		return time.Now().Sub(begin), err
 	}
 
 	if meta.StatusCode > http.StatusOK {
-		return time.Now().Sub(begin), fmt.Errorf("Non-200 returned from endpoint.")
+		return time.Now().Sub(begin), fmt.Errorf("non-200 returned from endpoint")
 	}
 
 	return time.Now().Sub(begin), nil
@@ -171,7 +185,7 @@ func (h Host) Percentile(percentile float64) time.Duration {
 
 // Status returns the status line for the host.
 func (h Host) Status(hostWidth int) string {
-	host := util.ColorFixedWidthLeftAligned(h.url.String(), util.ColorReset, hostWidth+2)
+	host := util.ColorReset.Apply(util.String.FixedWidthLeftAligned(h.url.String(), hostWidth+2))
 
 	uptimePCT := 1.0
 	if h.TotalDowntime() > 0 {
@@ -186,36 +200,52 @@ func (h Host) Status(hostWidth int) string {
 	}
 
 	if uptimePCT > 0.995 {
-		uptimeText = util.Color(uptimeText, util.ColorGreen)
+		uptimeText = util.ColorGreen.Apply(uptimeText)
 	} else if uptimePCT > 0.990 {
-		uptimeText = util.Color(uptimeText, util.ColorLightGreen)
+		uptimeText = util.ColorLightGreen.Apply(uptimeText)
 	} else if uptimePCT > 0.95 {
-		uptimeText = util.Color(uptimeText, util.ColorYellow)
+		uptimeText = util.ColorYellow.Apply(uptimeText)
 	} else {
-		uptimeText = util.Color(uptimeText, util.ColorRed)
+		uptimeText = util.ColorRed.Apply(uptimeText)
 	}
-	uptimeText = fmt.Sprintf("(%s)", uptimeText)
+	uptimeText = fmt.Sprintf("%s%%%%", uptimeText)
 
-	if h.IsUp() && h.stats.Len() > 1 {
-		last := h.stats.PeekBack()
-		avg := h.Mean()
-		p99 := h.Percentile(99.0)
-		p90 := h.Percentile(90.0)
-		p75 := h.Percentile(75.0)
-
-		return fmt.Sprintf(
-			"%s %6s %-6s %s: %-6s %s: %-6s %s: %-7s %s: %-6s %s: %-6s",
-			host, statusUP,
-			uptimeText,
-			labelLast, FormatDuration(RoundDuration(last.(time.Duration), time.Millisecond)),
-			labelAverage, FormatDuration(RoundDuration(avg, time.Millisecond)),
-			label99th, FormatDuration(RoundDuration(p99, time.Millisecond)),
-			label90th, FormatDuration(RoundDuration(p90, time.Millisecond)),
-			label75th, FormatDuration(RoundDuration(p75, time.Millisecond)),
-		)
-	} else if !h.IsUp() {
+	if !h.IsUp() {
 		downFor := time.Now().Sub(*h.downAt)
 		return fmt.Sprintf("%s %6s %-6s Down For: %s", host, statusDOWN, uptimeText, FormatDuration(downFor))
 	}
-	return fmt.Sprintf("%s %s", host, unknownStatus)
+
+	if h.stats.Len() == 0 {
+		return fmt.Sprintf("%s %s", host, unknownStatus)
+	}
+
+	avg := h.Mean()
+	p99 := h.Percentile(99.0)
+	p90 := h.Percentile(90.0)
+
+	var last5 []time.Duration
+	var last5Floats []float64
+	h.stats.ReverseEachUntil(func(v interface{}) bool {
+		tv := v.(time.Duration)
+		last5 = append(last5, tv)
+		last5Floats = append(last5Floats, float64(tv))
+		return len(last5) < 5
+	})
+
+	last := last5[0]
+
+	buf := bytes.NewBuffer(nil)
+	buf.WriteString(host)
+	buf.WriteRune(rune(' '))
+	buf.WriteString(fmt.Sprintf("%6s", statusUP))
+	buf.WriteRune(rune(' '))
+	buf.WriteString(fmt.Sprintf("%-6s", uptimeText))
+	buf.WriteRune(rune(' '))
+	buf.WriteString(fmt.Sprintf("%-5s", FormatSparklines(last5Floats, float64(p99))))
+	buf.WriteRune(rune(' '))
+	buf.WriteString(fmt.Sprintf("%s: %-6s", labelLast, FormatDuration(RoundDuration(last, time.Millisecond))))
+	buf.WriteString(fmt.Sprintf("%s: %-6s", labelAverage, FormatDuration(RoundDuration(avg, time.Millisecond))))
+	buf.WriteString(fmt.Sprintf("%s: %-6s", label99th, FormatDuration(RoundDuration(p99, time.Millisecond))))
+	buf.WriteString(fmt.Sprintf("%s: %-6s", label90th, FormatDuration(RoundDuration(p90, time.Millisecond))))
+	return buf.String()
 }

@@ -5,19 +5,63 @@ import (
 	"math"
 	"strconv"
 	"time"
+
+	util "github.com/blendlabs/go-util"
 )
+
+const (
+	// Spark0 is a spark-line token.
+	Spark0 = "▁"
+	// Spark1 is a spark-line token.
+	Spark1 = "▂"
+	// Spark2 is a spark-line token.
+	Spark2 = "▃"
+	// Spark3 is a spark-line token.
+	Spark3 = "▅"
+	// Spark4 is a spark-line token.
+	Spark4 = "▇"
+)
+
+// FormatSparklines returns sparklines for the given value.
+func FormatSparklines(values []float64, optionalMax ...float64) string {
+	var max float64
+	if len(optionalMax) > 0 {
+		max = optionalMax[0]
+	} else {
+		max = util.Math.Max(values)
+	}
+	var normalized []float64
+	for _, v := range values {
+		normalized = append(normalized, v/max)
+	}
+	var output string
+	for _, nv := range normalized {
+		if nv > 0.8 {
+			output = output + Spark4
+		} else if nv > 0.6 {
+			output = output + Spark3
+		} else if nv > 0.4 {
+			output = output + Spark2
+		} else if nv > 0.2 {
+			output = output + Spark1
+		} else {
+			output = output + Spark0
+		}
+	}
+	return output
+}
 
 // Duration implements a custom json marshaller.
 type Duration time.Duration
 
-// AsDuration returns the duration as a time.Duration.
-func (d Duration) AsDuration() time.Duration {
+// AsTimeDuration returns the duration as a time.Duration.
+func (d Duration) AsTimeDuration() time.Duration {
 	return time.Duration(d)
 }
 
 // MarshalJSON marshals the Duration using `FormatDuration`.
 func (d Duration) MarshalJSON() ([]byte, error) {
-	return []byte(FormatDuration(d.AsDuration())), nil
+	return []byte(FormatDuration(d.AsTimeDuration())), nil
 }
 
 // UnmarshalJSON parses a duration string from a json blob.

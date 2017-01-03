@@ -10,23 +10,27 @@ import (
 type CheckIntervalAction func(c *Checks)
 
 // NewChecksFromConfig initializes a check set from a config.
-func NewChecksFromConfig(config *Config) *Checks {
+func NewChecksFromConfig(config *Config) (*Checks, error) {
 	c := &Checks{
 		config: config,
 		lock:   &sync.RWMutex{},
 	}
 	var longestHost int
 	for _, h := range config.Hosts {
+		host, err := NewHost(h, config.PingTimeout, config.MaxStats)
+		if err != nil {
+			return nil, err
+		}
 		c.hosts = append(
 			c.hosts,
-			NewHost(h, config.PingTimeout, config.MaxStats),
+			host,
 		)
 		if len(h) > longestHost {
 			longestHost = len(h)
 		}
 	}
 	c.longestHost = longestHost
-	return c
+	return c, nil
 }
 
 // Checks is the entrypoint for running healthchecks.
@@ -68,7 +72,7 @@ func (c *Checks) Start() {
 		if c.intervalAction != nil {
 			c.intervalAction(c)
 		}
-		time.Sleep(c.config.PollInterval.AsDuration())
+		time.Sleep(c.config.PollInterval.AsTimeDuration())
 	}
 }
 
@@ -92,10 +96,8 @@ func (c *Checks) Status() string {
 func doPing(h *Host) {
 	elapsed, err := h.Ping()
 	if err != nil {
-		//println(h.url.String(), util.Color("down", util.ColorRed), h.TotalDowntime(), h.TotalTime())
 		h.SetDown(time.Now())
 	} else {
-		//println(h.url.String(), util.Color("up", util.ColorGreen), h.TotalDowntime(), h.TotalTime())
 		h.SetUp()
 	}
 	h.AddTiming(elapsed)

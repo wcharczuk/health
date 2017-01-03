@@ -4,18 +4,21 @@ import (
 	"fmt"
 	"log"
 
-	. "github.com/wcharczuk/health/lib"
+	lib "github.com/wcharczuk/health/lib"
 )
 
 func main() {
-	config, err := NewConfigFromFlags()
+	config, err := lib.NewConfigFromFlags()
 
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	checks := NewChecksFromConfig(config)
-	checks.OnInterval(func(c *Checks) {
+	checks, err := lib.NewChecksFromConfig(config)
+	if err != nil {
+		log.Fatal(err)
+	}
+	checks.OnInterval(func(c *lib.Checks) {
 		clear()
 		if len(c.Hosts()) > 0 {
 			fmt.Printf(c.Status())
