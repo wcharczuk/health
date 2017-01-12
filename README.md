@@ -2,7 +2,13 @@
 
 Health is a simple commandline healtcheck utility that gives you basic stats about response times (uptime %, last, average, 99th percentile, 90th percentile, 75th percentile).
 
-It is only for OS-X / Linux right now (no windows support because of the ANSI clear code used to wipe the console).
+Support for
+
+- OS-X
+- Linux
+- Windows. Windows 10 natively supported. Before Windows 10 by using [ConEmu](https://conemu.github.io/).
+
+Does not support < Windows 10 because of the ANSI clear code used to wipe the console.
 
 ##Installation
 
