@@ -48,7 +48,7 @@ type Host struct {
 	downtime  time.Duration
 	stats     collections.Queue
 	transport *http.Transport
-	req       *request.HTTPRequest
+	req       *request.Request
 	timeout   Duration
 	maxStats  int
 }
@@ -105,7 +105,7 @@ func (h *Host) AddTiming(elapsed time.Duration) {
 	h.stats.Enqueue(elapsed)
 }
 
-func (h *Host) ensureRequest() *request.HTTPRequest {
+func (h *Host) ensureRequest() *request.Request {
 	if h.req != nil {
 		if h.transport != nil {
 			return h.req.WithTransport(h.transport)
@@ -113,7 +113,7 @@ func (h *Host) ensureRequest() *request.HTTPRequest {
 		return h.req
 	}
 
-	req := request.NewHTTPRequest().
+	req := request.New().
 		AsGet().
 		WithKeepAlives().
 		WithURL(h.url.String()).
