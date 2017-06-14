@@ -57,6 +57,7 @@ func (c *Config) ParseFlags() error {
 	var hosts HostsFlag
 	flag.Var(&hosts, "host", "Host(s) to ping.")
 
+	pingTimeout := flag.Int("timeout", int(DefaultPingTimeout.AsTimeDuration()/time.Millisecond), "Timeout for each check in milliseconds")
 	pollInterval := flag.Int("interval", int(DefaultPollInterval.AsTimeDuration()/time.Millisecond), "Server polling interval in milliseconds")
 	showNotifications := flag.Bool("notification", true, "Show OS X Notification on `down`")
 	configFilePath := flag.String("config", "", "Load configuration from a file.")
@@ -65,9 +66,18 @@ func (c *Config) ParseFlags() error {
 	flag.Parse()
 
 	if configFilePath != nil && len(*configFilePath) != 0 {
-		fmt.Println("Returning config from file")
 		return c.LoadFromPath(*configFilePath)
 	}
+
+
+	fmt.Println("the pingTimeout is ",pingTimeout)
+	panic("errr")
+	if pingTimeout != nil {
+		fmt.Println("setting c.pingtimeout")
+		c.PingTimeout= Duration(time.Duration(*pingTimeout) * time.Millisecond)
+	}
+
+
 	if pollInterval != nil {
 		c.PollInterval = Duration(time.Duration(*pollInterval) * time.Millisecond)
 	}
@@ -78,6 +88,7 @@ func (c *Config) ParseFlags() error {
 	if showNotifications != nil {
 		c.ShowNotification = *showNotifications
 	}
+	fmt.Println("the current config is ",c)
 
 	return nil
 }

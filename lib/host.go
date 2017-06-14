@@ -120,6 +120,8 @@ func (h *Host) ensureRequest() *request.Request {
 		WithTimeout(h.timeout.AsTimeDuration())
 
 	req = req.OnCreateTransport(func(_ *url.URL, t *http.Transport) {
+		// TODO add it to the config
+		t.TLSClientConfig.InsecureSkipVerify=true
 		h.transport = t
 	})
 
