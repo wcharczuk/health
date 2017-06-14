@@ -8,6 +8,7 @@ import (
 )
 
 func main() {
+
 	config, err := lib.NewConfigFromFlags()
 
 	if err != nil {

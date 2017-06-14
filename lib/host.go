@@ -27,6 +27,8 @@ var (
 
 // NewHost returns a new host.
 func NewHost(host string, timeout Duration, maxStats int) (*Host, error) {
+	fmt.Println("timeout is ",timeout)
+	panic("I wanna panic")
 	hostURL, err := url.Parse(host)
 	if err != nil {
 		return nil, err
