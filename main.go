@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"log"
 
-	lib "github.com/wcharczuk/health/lib"
+	lib "github.com/medyagh/health/lib"
+	tm "github.com/buger/goterm"
 )
 
 func main() {
-
 	config, err := lib.NewConfigFromFlags()
 
 	if err != nil {
@@ -31,5 +31,6 @@ func main() {
 }
 
 func clear() {
-	fmt.Print("\033[H\033[2J")
+	tm.Clear() // Clear current screen
+	tm.Flush()
 }
