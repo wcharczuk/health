@@ -23,6 +23,7 @@ Does not support < Windows 10 because of the ANSI clear code used to wipe the co
 Install using standard `go get && go install`. Make sure that your `$GOPATH/bin` directory is in your `$PATH`
 
 ```bash
+> go get -u "github.com/buger/goterm"
 > go get -u github.com/medyagh/health
 > go install github.com/medyagh/health
 > health --host http://google.com --interval 1000
