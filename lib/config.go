@@ -5,15 +5,16 @@ import (
 	"flag"
 	"os"
 	"time"
+	"fmt"
 )
 
 const (
 	// DefaultMaxStats is the default number of deltas to keep per host.
 	DefaultMaxStats = 128
 	// DefaultPingTimeout is the connection timeout.
-	DefaultPingTimeout = Duration(1000 * time.Millisecond)
+	DefaultPingTimeout = Duration(5000 * time.Millisecond)
 	//DefaultPollInterval is the default time between pings.
-	DefaultPollInterval = Duration(2000 * time.Millisecond)
+	DefaultPollInterval = Duration(5000 * time.Millisecond)
 )
 
 // NewConfigFromFlags returns a new config object by parsing flags.
@@ -56,6 +57,7 @@ func (c *Config) ParseFlags() error {
 	var hosts HostsFlag
 	flag.Var(&hosts, "host", "Host(s) to ping.")
 
+	pingTimeout := flag.Int("timeout", int(DefaultPingTimeout.AsTimeDuration()/time.Millisecond), "Timeout for each check in milliseconds")
 	pollInterval := flag.Int("interval", int(DefaultPollInterval.AsTimeDuration()/time.Millisecond), "Server polling interval in milliseconds")
 	showNotifications := flag.Bool("notification", true, "Show OS X Notification on `down`")
 	configFilePath := flag.String("config", "", "Load configuration from a file.")
@@ -66,6 +68,16 @@ func (c *Config) ParseFlags() error {
 	if configFilePath != nil && len(*configFilePath) != 0 {
 		return c.LoadFromPath(*configFilePath)
 	}
+
+
+	fmt.Println("the pingTimeout is ",pingTimeout)
+	panic("errr")
+	if pingTimeout != nil {
+		fmt.Println("setting c.pingtimeout")
+		c.PingTimeout= Duration(time.Duration(*pingTimeout) * time.Millisecond)
+	}
+
+
 	if pollInterval != nil {
 		c.PollInterval = Duration(time.Duration(*pollInterval) * time.Millisecond)
 	}
@@ -76,6 +88,7 @@ func (c *Config) ParseFlags() error {
 	if showNotifications != nil {
 		c.ShowNotification = *showNotifications
 	}
+	fmt.Println("the current config is ",c)
 
 	return nil
 }

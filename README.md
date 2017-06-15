@@ -1,5 +1,13 @@
 #Health
 
+# Notice !
+# this is a fork of github.com/wcharczuk/health
+
+ I fix the issues for myself and add features
+ plan is to merge it back to github.com/wcharczuk/health
+ because of go's weird depending on the github name I have to change the lib package to my own fork.
+
+
 Health is a simple commandline healtcheck utility that gives you basic stats about response times (uptime %, last, average, 99th percentile, 90th percentile, 75th percentile).
 
 Support for
@@ -15,8 +23,9 @@ Does not support < Windows 10 because of the ANSI clear code used to wipe the co
 Install using standard `go get && go install`. Make sure that your `$GOPATH/bin` directory is in your `$PATH`
 
 ```bash
-> go get -u github.com/wcharczuk/health
-> go install github.com/wcharczuk/health
+> go get -u "github.com/buger/goterm"
+> go get -u github.com/medyagh/health
+> go install github.com/medyagh/health
 > health --host http://google.com --interval 1000
 ```
 
