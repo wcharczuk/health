@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 
 	lib "github.com/wcharczuk/health/lib"
 )
@@ -21,9 +22,12 @@ func main() {
 	checks.OnInterval(func(c *lib.Checks) {
 		clear()
 		if len(c.Hosts()) > 0 {
-			fmt.Printf(c.Status())
+			err := c.WriteStatus(os.Stdout)
+			if err != nil {
+				log.Fatal(err)
+			}
 		} else {
-			fmt.Println("No hosts configured.")
+			log.Fatalf("no hosts configured")
 		}
 	})
 	checks.Start()

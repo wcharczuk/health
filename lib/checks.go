@@ -1,7 +1,8 @@
 package health
 
 import (
-	"strings"
+	"fmt"
+	"io"
 	"sync"
 	"time"
 )
@@ -12,8 +13,9 @@ type CheckIntervalAction func(c *Checks)
 // NewChecksFromConfig initializes a check set from a config.
 func NewChecksFromConfig(config *Config) (*Checks, error) {
 	c := &Checks{
-		config: config,
-		lock:   &sync.RWMutex{},
+		config:  config,
+		abort:   make(chan bool),
+		aborted: make(chan bool),
 	}
 	var longestHost int
 	for _, h := range config.Hosts {
@@ -37,10 +39,10 @@ func NewChecksFromConfig(config *Config) (*Checks, error) {
 type Checks struct {
 	config         *Config
 	hosts          []*Host
-	running        bool
+	abort          chan bool
+	aborted        chan bool
 	intervalAction CheckIntervalAction
 	longestHost    int
-	lock           *sync.RWMutex
 }
 
 // Hosts returns the hosts for the checks collection.
@@ -56,41 +58,46 @@ func (c *Checks) OnInterval(action CheckIntervalAction) {
 // Start starts the healthcheck
 func (c *Checks) Start() {
 	wg := sync.WaitGroup{}
-	c.running = true
-	for c.running {
-		wg.Add(len(c.hosts))
-
-		for index := range c.hosts {
-			go func(x int) {
-				defer wg.Done()
-				host := c.hosts[x]
-				doPing(host)
-			}(index)
+	ticker := time.NewTicker(c.config.PollInterval)
+	for {
+		select {
+		case <-c.abort:
+			c.aborted <- true
+			return
+		case <-ticker.C:
+			wg.Add(len(c.hosts))
+			for index := range c.hosts {
+				go func(x int) {
+					defer wg.Done()
+					host := c.hosts[x]
+					doPing(host)
+				}(index)
+			}
+			wg.Wait()
+			if c.intervalAction != nil {
+				c.intervalAction(c)
+			}
 		}
-
-		wg.Wait()
-		if c.intervalAction != nil {
-			c.intervalAction(c)
-		}
-		time.Sleep(c.config.PollInterval)
 	}
 }
 
 // Stop stops the healthcheck loop.
 func (c *Checks) Stop() {
-	c.running = false
+	c.abort <- true
+	<-c.aborted
 }
 
-// Status returns the statuses for all the hosts.
-func (c *Checks) Status() string {
-	c.lock.RLock()
-	defer c.lock.RUnlock()
-
-	var statuses []string
+// WriteStatus writes the statuses for all the hosts.
+func (c *Checks) WriteStatus(writer io.Writer) error {
+	var err error
 	for index := range c.hosts {
-		statuses = append(statuses, c.hosts[index].Status(c.longestHost))
+		err = c.hosts[index].WriteStatus(c.longestHost, writer)
+		if err != nil {
+			return err
+		}
 	}
-	return strings.Join(statuses, "\n")
+	_, err = fmt.Fprintf(writer, "\n")
+	return err
 }
 
 func doPing(h *Host) {

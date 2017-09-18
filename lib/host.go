@@ -3,6 +3,7 @@ package health
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"sort"
@@ -183,8 +184,8 @@ func (h Host) Percentile(percentile float64) time.Duration {
 	return values[i-1]
 }
 
-// Status returns the status line for the host.
-func (h Host) Status(hostWidth int) string {
+// WriteStatus writes the status line for the host.
+func (h Host) WriteStatus(hostWidth int, writer io.Writer) error {
 	host := util.ColorReset.Apply(util.String.FixedWidthLeftAligned(h.url.String(), hostWidth+2))
 
 	uptimePCT := 1.0
@@ -212,11 +213,13 @@ func (h Host) Status(hostWidth int) string {
 
 	if !h.IsUp() {
 		downFor := time.Now().Sub(*h.downAt)
-		return fmt.Sprintf("%s %6s %-6s Down For: %s", host, statusDOWN, uptimeText, FormatDuration(downFor))
+		_, err := fmt.Fprintf(writer, "%s %6s %-6s Down For: %s\n", host, statusDOWN, uptimeText, FormatDuration(downFor))
+		return err
 	}
 
 	if h.stats.Len() == 0 {
-		return fmt.Sprintf("%s %s", host, unknownStatus)
+		_, err := fmt.Fprintf(writer, "%s %s\n", host, unknownStatus)
+		return err
 	}
 
 	avg := h.Mean()
@@ -247,5 +250,7 @@ func (h Host) Status(hostWidth int) string {
 	buf.WriteString(fmt.Sprintf("%s: %-6s", labelAverage, FormatDuration(RoundDuration(avg, time.Millisecond))))
 	buf.WriteString(fmt.Sprintf("%s: %-6s", label99th, FormatDuration(RoundDuration(p99, time.Millisecond))))
 	buf.WriteString(fmt.Sprintf("%s: %-6s", label90th, FormatDuration(RoundDuration(p90, time.Millisecond))))
-	return buf.String()
+	buf.WriteRune(rune('\n'))
+	_, err := writer.Write(buf.Bytes())
+	return err
 }

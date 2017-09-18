@@ -28,25 +28,29 @@ const (
 	ExtensionYAML = ".yaml"
 )
 
+// NewConfig returns a config with defaults.
+func NewConfig() *Config {
+	return &Config{
+		PollInterval: DefaultPollInterval,
+		PingTimeout:  DefaultPingTimeout,
+		MaxStats:     DefaultMaxStats,
+	}
+}
+
 // NewConfigFromFlags parses commandline flags into a config object.
 func NewConfigFromFlags() (*Config, error) {
 	var hosts HostsFlag
-	c := Config{
-		PingTimeout:  DefaultPingTimeout,
-		MaxStats:     DefaultMaxStats,
-		PollInterval: DefaultPollInterval,
-	}
 	flag.Var(&hosts, "host", "Host(s) to ping.")
-
 	pollInterval := flag.Duration("interval", DefaultPollInterval, "Server polling interval as a duration")
 	configFilePath := flag.String("config", "", "Load configuration from a file.")
 
-	//parse the arguments
 	flag.Parse()
 
 	if configFilePath != nil && len(*configFilePath) != 0 {
 		return NewConfigFromPath(*configFilePath)
 	}
+
+	c := NewConfig()
 	if pollInterval != nil {
 		c.PollInterval = *pollInterval
 	}
@@ -54,7 +58,7 @@ func NewConfigFromFlags() (*Config, error) {
 		c.Hosts = append(c.Hosts, hosts...)
 	}
 
-	return &c, nil
+	return c, nil
 }
 
 // NewConfigFromPath returns a new config from a file path.
@@ -70,9 +74,10 @@ func NewConfigFromPath(filePath string) (*Config, error) {
 
 	filePathLower := strings.ToLower(filePath)
 
-	var config Config
+	config := NewConfig()
+
 	if strings.HasSuffix(filePathLower, ExtensionJSON) {
-		return &config, json.NewDecoder(file).Decode(&config)
+		return config, json.NewDecoder(file).Decode(config)
 	}
 
 	if strings.HasSuffix(filePathLower, ExtensionYML) || strings.HasSuffix(filePathLower, ExtensionYAML) {
@@ -80,7 +85,7 @@ func NewConfigFromPath(filePath string) (*Config, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &config, yaml.Unmarshal(contents, &config)
+		return config, yaml.Unmarshal(contents, config)
 	}
 	return nil, fmt.Errorf("unsupported file type")
 }
