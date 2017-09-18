@@ -26,7 +26,7 @@ var (
 )
 
 // NewHost returns a new host.
-func NewHost(host string, timeout Duration, maxStats int) (*Host, error) {
+func NewHost(host string, timeout time.Duration, maxStats int) (*Host, error) {
 	hostURL, err := url.Parse(host)
 	if err != nil {
 		return nil, err
@@ -49,12 +49,12 @@ type Host struct {
 	stats     collections.Queue
 	transport *http.Transport
 	req       *request.Request
-	timeout   Duration
+	timeout   time.Duration
 	maxStats  int
 }
 
 // SetTimeout sets the timeout used by `ping`.
-func (h *Host) SetTimeout(timeout Duration) {
+func (h *Host) SetTimeout(timeout time.Duration) {
 	h.timeout = timeout
 }
 
@@ -117,7 +117,7 @@ func (h *Host) ensureRequest() *request.Request {
 		AsGet().
 		WithKeepAlives().
 		WithURL(h.url.String()).
-		WithTimeout(h.timeout.AsTimeDuration())
+		WithTimeout(h.timeout)
 
 	req = req.OnCreateTransport(func(_ *url.URL, t *http.Transport) {
 		h.transport = t

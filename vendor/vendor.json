@@ -1,0 +1,55 @@
+{
+	"comment": "",
+	"ignore": "test",
+	"package": [
+		{
+			"checksumSHA1": "cUB1gu3ZOBu0/f9Rd6GShGEkYTI=",
+			"path": "github.com/blendlabs/go-assert",
+			"revision": "928e5acf01dd2bb7a01c30ffb73911950bad900b",
+			"revisionTime": "2016-07-23T19:36:15Z"
+		},
+		{
+			"checksumSHA1": "NhjLHmLWhjLHrlv7maTxzfXef9o=",
+			"path": "github.com/blendlabs/go-exception",
+			"revision": "04be78b9b2a71cf039fe86cef5221b3d3cb89fd7",
+			"revisionTime": "2017-08-20T19:09:42Z"
+		},
+		{
+			"checksumSHA1": "uMeJhj9pCaT5WTPDSopHbwoykxM=",
+			"path": "github.com/blendlabs/go-logger",
+			"revision": "3c541dc4a966a86bfcf295664d970849e9afcb45",
+			"revisionTime": "2017-08-30T22:00:13Z"
+		},
+		{
+			"checksumSHA1": "9U7ElYEPVJyfDH33ksE5wkfVjOU=",
+			"path": "github.com/blendlabs/go-request",
+			"revision": "1c75efa022d17bce2e12ab5f2b63076032604ddf",
+			"revisionTime": "2017-08-06T02:10:10Z"
+		},
+		{
+			"checksumSHA1": "Ju+jg3lDOsvPtpUHb65AcB7BHPY=",
+			"path": "github.com/blendlabs/go-util",
+			"revision": "1534d773d855a2d07615f81466c67b4c421c19d1",
+			"revisionTime": "2017-09-08T02:20:39Z"
+		},
+		{
+			"checksumSHA1": "FnR/Wygnj2W0ReKJ/czc83KAxDg=",
+			"path": "github.com/blendlabs/go-util/collections",
+			"revision": "1534d773d855a2d07615f81466c67b4c421c19d1",
+			"revisionTime": "2017-09-08T02:20:39Z"
+		},
+		{
+			"checksumSHA1": "uSpftBUP9XhEkEjRcgFoGEb7NvE=",
+			"path": "github.com/blendlabs/go-workqueue",
+			"revision": "203544500fd0bfdaac79e7304dc8151b19701cc8",
+			"revisionTime": "2017-04-07T00:53:23Z"
+		},
+		{
+			"checksumSHA1": "RDJpJQwkF012L6m/2BJizyOksNw=",
+			"path": "gopkg.in/yaml.v2",
+			"revision": "eb3733d160e74a9c7e442f435eb3bea458e1d19f",
+			"revisionTime": "2017-08-12T16:00:11Z"
+		}
+	],
+	"rootPath": "github.com/wcharczuk/health"
+}

@@ -72,7 +72,7 @@ func (c *Checks) Start() {
 		if c.intervalAction != nil {
 			c.intervalAction(c)
 		}
-		time.Sleep(c.config.PollInterval.AsTimeDuration())
+		time.Sleep(c.config.PollInterval)
 	}
 }
 
