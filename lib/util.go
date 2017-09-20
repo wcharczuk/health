@@ -35,7 +35,8 @@ func FormatSparklines(values []float64, optionalMax ...float64) string {
 		normalized = append(normalized, v/max)
 	}
 	var output string
-	for _, nv := range normalized {
+	for index := len(normalized) - 1; index >= 0; index-- {
+		nv := normalized[index]
 		if nv > 0.8 {
 			output = output + Spark4
 		} else if nv > 0.6 {
