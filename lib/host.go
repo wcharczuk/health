@@ -33,25 +33,28 @@ func NewHost(host string, timeout time.Duration, maxStats int) (*Host, error) {
 		return nil, err
 	}
 	return &Host{
-		url:       hostURL,
-		maxStats:  maxStats,
-		timeout:   timeout,
-		startedAt: time.Now().UTC(),
-		stats:     collections.NewRingBufferWithCapacity(maxStats),
+		url:          hostURL,
+		maxStats:     maxStats,
+		timeout:      timeout,
+		startedAtUTC: time.Now().UTC(),
+		transport:    &http.Transport{},
+		stats:        collections.NewRingBufferWithCapacity(maxStats),
+		errs:         collections.NewRingBuffer(),
 	}, nil
 }
 
 // Host is a server to ping
 type Host struct {
-	url       *url.URL
-	startedAt time.Time
-	downAt    *time.Time
-	downtime  time.Duration
-	stats     collections.Queue
-	transport *http.Transport
-	req       *request.Request
-	timeout   time.Duration
-	maxStats  int
+	url          *url.URL
+	startedAtUTC time.Time
+	downAt       *time.Time
+	downtime     time.Duration
+	stats        collections.Queue
+	transport    *http.Transport
+	req          *request.Request
+	timeout      time.Duration
+	errs         collections.Queue
+	maxStats     int
 }
 
 // SetTimeout sets the timeout used by `ping`.
@@ -80,7 +83,7 @@ func (h *Host) TotalDowntime() time.Duration {
 
 // TotalTime returns the total time the check has been active for.
 func (h *Host) TotalTime() time.Duration {
-	return time.Now().UTC().Sub(h.startedAt)
+	return time.Now().UTC().Sub(h.startedAtUTC)
 }
 
 // SetUp sets a host as up.
@@ -108,9 +111,6 @@ func (h *Host) AddTiming(elapsed time.Duration) {
 
 func (h *Host) ensureRequest() *request.Request {
 	if h.req != nil {
-		if h.transport != nil {
-			return h.req.WithTransport(h.transport)
-		}
 		return h.req
 	}
 
@@ -119,10 +119,6 @@ func (h *Host) ensureRequest() *request.Request {
 		WithKeepAlives().
 		WithURL(h.url.String()).
 		WithTimeout(h.timeout)
-
-	req = req.OnCreateTransport(func(_ *url.URL, t *http.Transport) {
-		h.transport = t
-	})
 
 	h.req = req
 	return req
@@ -134,15 +130,16 @@ func (h *Host) Ping() (time.Duration, error) {
 
 	begin := time.Now()
 	meta, err := req.ExecuteWithMeta()
+	elapsed := time.Now().Sub(begin)
 	if err != nil {
-		return time.Now().Sub(begin), err
+		return elapsed, err
 	}
 
 	if meta.StatusCode > http.StatusOK {
-		return time.Now().Sub(begin), fmt.Errorf("non-200 returned from endpoint")
+		return elapsed, fmt.Errorf("non-200 returned from endpoint")
 	}
 
-	return time.Now().Sub(begin), nil
+	return elapsed, nil
 }
 
 // Mean returns the average duration.
@@ -185,13 +182,14 @@ func (h Host) Percentile(percentile float64) time.Duration {
 }
 
 // WriteStatus writes the status line for the host.
-func (h Host) WriteStatus(hostWidth int, writer io.Writer) error {
+func (h Host) WriteStatus(hostWidth int, maxElapsed time.Duration, writer io.Writer) error {
 	host := util.ColorReset.Apply(util.String.FixedWidthLeftAligned(h.url.String(), hostWidth+2))
 
 	uptimePCT := 1.0
 	if h.TotalDowntime() > 0 {
-		totalTimeElapsed := time.Now().UTC().Sub(h.startedAt)
-		uptimePCT = float64(totalTimeElapsed-h.TotalDowntime()) / float64(totalTimeElapsed)
+		totalTime := h.TotalTime() / time.Millisecond
+		downTime := h.TotalDowntime() / time.Millisecond
+		uptimePCT = float64(totalTime-downTime) / float64(totalTime)
 	}
 	var uptimeText string
 	if uptimePCT < 1.0 {
@@ -244,7 +242,7 @@ func (h Host) WriteStatus(hostWidth int, writer io.Writer) error {
 	buf.WriteRune(rune(' '))
 	buf.WriteString(fmt.Sprintf("%-6s", uptimeText))
 	buf.WriteRune(rune(' '))
-	buf.WriteString(fmt.Sprintf("%-5s", FormatSparklines(last5Floats, float64(p99))))
+	buf.WriteString(fmt.Sprintf("%-5s", FormatSparklines(last5Floats, float64(maxElapsed))))
 	buf.WriteRune(rune(' '))
 	buf.WriteString(fmt.Sprintf("%s: %-6s", labelLast, FormatDuration(RoundDuration(last, time.Millisecond))))
 	buf.WriteString(fmt.Sprintf("%s: %-6s", labelAverage, FormatDuration(RoundDuration(avg, time.Millisecond))))
@@ -253,4 +251,37 @@ func (h Host) WriteStatus(hostWidth int, writer io.Writer) error {
 	buf.WriteRune(rune('\n'))
 	_, err := writer.Write(buf.Bytes())
 	return err
+}
+
+// WriteDowntimeStatus writes downtime status if any is present.
+func (h Host) WriteDowntimeStatus(hostWidth int, writer io.Writer) error {
+	host := util.ColorReset.Apply(util.String.FixedWidthLeftAligned(h.url.String(), hostWidth+2))
+
+	if h.TotalDowntime() > 0 {
+		totalTime := h.TotalTime() / time.Millisecond
+		downTime := h.TotalDowntime() / time.Millisecond
+		fmt.Fprintf(writer, "%s total: %v down: %v Δ: %v\n", host, totalTime, downTime, totalTime-downTime)
+	}
+
+	return nil
+}
+
+// WriteErrorStatus writes the error status.
+func (h Host) WriteErrorStatus(hostWidth int, writer io.Writer) error {
+	host := util.ColorReset.Apply(util.String.FixedWidthLeftAligned(h.url.String(), hostWidth+2))
+
+	buf := bytes.NewBuffer(nil)
+
+	var index int
+	h.errs.EachUntil(func(err interface{}) bool {
+		buf.WriteString(host)
+		buf.WriteRune(rune(' '))
+		buf.WriteString(fmt.Sprintf("%v", err))
+		buf.WriteRune(rune('\n'))
+		index++
+		return index < 5
+	})
+
+	_, writeErr := writer.Write(buf.Bytes())
+	return writeErr
 }

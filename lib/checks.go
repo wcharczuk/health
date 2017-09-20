@@ -5,6 +5,8 @@ import (
 	"io"
 	"sync"
 	"time"
+
+	"github.com/blendlabs/go-util"
 )
 
 // CheckIntervalAction is a func(c *Checks)
@@ -57,7 +59,6 @@ func (c *Checks) OnInterval(action CheckIntervalAction) {
 
 // Start starts the healthcheck
 func (c *Checks) Start() {
-	wg := sync.WaitGroup{}
 	ticker := time.NewTicker(c.config.PollInterval)
 	for {
 		select {
@@ -65,15 +66,7 @@ func (c *Checks) Start() {
 			c.aborted <- true
 			return
 		case <-ticker.C:
-			wg.Add(len(c.hosts))
-			for index := range c.hosts {
-				go func(x int) {
-					defer wg.Done()
-					host := c.hosts[x]
-					doPing(host)
-				}(index)
-			}
-			wg.Wait()
+			c.PingAll()
 			if c.intervalAction != nil {
 				c.intervalAction(c)
 			}
@@ -87,20 +80,25 @@ func (c *Checks) Stop() {
 	<-c.aborted
 }
 
-// WriteStatus writes the statuses for all the hosts.
-func (c *Checks) WriteStatus(writer io.Writer) error {
-	var err error
+// PingAll pings all the hosts.
+func (c *Checks) PingAll() {
+	wg := sync.WaitGroup{}
+	wg.Add(len(c.hosts))
 	for index := range c.hosts {
-		err = c.hosts[index].WriteStatus(c.longestHost, writer)
-		if err != nil {
-			return err
-		}
+		go func(x int) {
+			defer wg.Done()
+			host := c.hosts[x]
+			err := c.Ping(host)
+			if err != nil {
+				host.errs.Enqueue(err)
+			}
+		}(index)
 	}
-	_, err = fmt.Fprintf(writer, "\n")
-	return err
+	wg.Wait()
 }
 
-func doPing(h *Host) {
+// Ping performs a ping and marks the host up or down.
+func (c *Checks) Ping(h *Host) error {
 	elapsed, err := h.Ping()
 	if err != nil {
 		h.SetDown(time.Now())
@@ -108,4 +106,69 @@ func doPing(h *Host) {
 		h.SetUp()
 	}
 	h.AddTiming(elapsed)
+	return err
+}
+
+// HasErrors returns if the checks collection has a host with errors.
+func (c *Checks) HasErrors() bool {
+	for index := range c.hosts {
+		if c.hosts[index].errs.Len() > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// MaxElapsed returns the maximum elapsed for the entire checks list.
+func (c *Checks) MaxElapsed() time.Duration {
+	var elapsed time.Duration
+	for index := range c.hosts {
+		c.hosts[index].stats.Each(func(v interface{}) {
+			if typed, isTyped := v.(time.Duration); isTyped {
+				if typed > elapsed {
+					elapsed = typed
+				}
+			}
+		})
+	}
+	return elapsed
+}
+
+// WriteStatus writes the statuses for all the hosts.
+func (c *Checks) WriteStatus(writer io.Writer) error {
+	var err error
+
+	maxElapsed := c.MaxElapsed()
+
+	for index := range c.hosts {
+		err = c.hosts[index].WriteStatus(c.longestHost, maxElapsed, writer)
+		if err != nil {
+			return err
+		}
+	}
+
+	if !c.HasErrors() {
+		return nil
+	}
+
+	fmt.Fprintf(writer, "\n")
+	fmt.Fprintf(writer, "%s\n", util.ColorYellow.Apply("Downtime:"))
+
+	for index := range c.hosts {
+		err = c.hosts[index].WriteDowntimeStatus(c.longestHost, writer)
+		if err != nil {
+			return err
+		}
+	}
+
+	fmt.Fprintf(writer, "\n")
+	fmt.Fprintf(writer, "%s\n", util.ColorRed.Apply("Errors:"))
+
+	for index := range c.hosts {
+		err = c.hosts[index].WriteErrorStatus(c.longestHost, writer)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
