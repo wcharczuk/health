@@ -39,6 +39,7 @@ func NewChecksFromConfig(config *Config) (*Checks, error) {
 
 // Checks is the entrypoint for running healthchecks.
 type Checks struct {
+	startedAtUTC   time.Time
 	config         *Config
 	hosts          []*Host
 	abort          chan bool
@@ -59,6 +60,7 @@ func (c *Checks) OnInterval(action CheckIntervalAction) {
 
 // Start starts the healthcheck
 func (c *Checks) Start() {
+	c.startedAtUTC = time.Now().UTC()
 	ticker := time.NewTicker(c.config.PollInterval)
 	for {
 		select {
@@ -136,10 +138,9 @@ func (c *Checks) MaxElapsed() time.Duration {
 
 // WriteStatus writes the statuses for all the hosts.
 func (c *Checks) WriteStatus(writer io.Writer) error {
+	fmt.Fprintf(writer, "Health :: running for: %v, poll interval: %v, ping timeout: %v\n", time.Now().UTC().Sub(c.startedAtUTC), c.config.PollInterval, c.config.PingTimeout)
 	var err error
-
 	maxElapsed := c.MaxElapsed()
-
 	for index := range c.hosts {
 		err = c.hosts[index].WriteStatus(c.longestHost, maxElapsed, writer)
 		if err != nil {

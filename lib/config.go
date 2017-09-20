@@ -16,9 +16,9 @@ const (
 	// DefaultMaxStats is the default number of deltas to keep per host.
 	DefaultMaxStats = 128
 	// DefaultPingTimeout is the connection timeout.
-	DefaultPingTimeout = 1500 * time.Millisecond
+	DefaultPingTimeout = 3000 * time.Millisecond
 	//DefaultPollInterval is the default time between pings.
-	DefaultPollInterval = 2000 * time.Millisecond
+	DefaultPollInterval = 5000 * time.Millisecond
 
 	// ExtensionJSON is the json extension.
 	ExtensionJSON = ".json"

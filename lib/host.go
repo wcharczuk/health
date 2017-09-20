@@ -258,8 +258,8 @@ func (h Host) WriteDowntimeStatus(hostWidth int, writer io.Writer) error {
 	host := util.ColorReset.Apply(util.String.FixedWidthLeftAligned(h.url.String(), hostWidth+2))
 
 	if h.TotalDowntime() > 0 {
-		totalTime := h.TotalTime() / time.Millisecond
-		downTime := h.TotalDowntime() / time.Millisecond
+		totalTime := h.TotalTime()
+		downTime := h.TotalDowntime()
 		fmt.Fprintf(writer, "%s total: %v down: %v Δ: %v\n", host, totalTime, downTime, totalTime-downTime)
 	}
 

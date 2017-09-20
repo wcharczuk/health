@@ -19,6 +19,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	fmt.Printf("gathering metrics...\n")
 	checks.OnInterval(func(c *lib.Checks) {
 		clear()
 		if len(c.Hosts()) > 0 {
