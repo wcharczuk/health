@@ -14,7 +14,7 @@ import (
 
 const (
 	// DefaultMaxStats is the default number of deltas to keep per host.
-	DefaultMaxStats = 128
+	DefaultMaxStats = 1024
 	// DefaultPingTimeout is the connection timeout.
 	DefaultPingTimeout = 3000 * time.Millisecond
 	//DefaultPollInterval is the default time between pings.
