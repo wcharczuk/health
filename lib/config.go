@@ -19,6 +19,8 @@ const (
 	DefaultPingTimeout = 3000 * time.Millisecond
 	//DefaultPollInterval is the default time between pings.
 	DefaultPollInterval = 5000 * time.Millisecond
+	// DefaultRefreshInterval is the default time between screen refreshes.
+	DefaultRefreshInterval = 250 * time.Millisecond
 
 	// ExtensionJSON is the json extension.
 	ExtensionJSON = ".json"
@@ -31,9 +33,10 @@ const (
 // NewConfig returns a config with defaults.
 func NewConfig() *Config {
 	return &Config{
-		PollInterval: DefaultPollInterval,
-		PingTimeout:  DefaultPingTimeout,
-		MaxStats:     DefaultMaxStats,
+		PollInterval:    DefaultPollInterval,
+		RefreshInterval: DefaultRefreshInterval,
+		PingTimeout:     DefaultPingTimeout,
+		MaxStats:        DefaultMaxStats,
 	}
 }
 
@@ -92,11 +95,12 @@ func NewConfigFromPath(filePath string) (*Config, error) {
 
 // Config is the healthcheck configuration.
 type Config struct {
-	PingTimeout  time.Duration `json:"ping_timeout" yaml:"pingTimeout"`
-	MaxStats     int           `json:"max_stats" yaml:"maxStats"`
-	PollInterval time.Duration `json:"interval" yaml:"pollInterval"`
-	Hosts        []string      `json:"hosts" yaml:"hosts"`
-	Verbose      bool          `json:"verbose" yaml:"verbose"`
+	MaxStats        int           `json:"max_stats" yaml:"maxStats"`
+	RefreshInterval time.Duration `json:"refresh_interval" yaml:"refreshInterval"`
+	PollInterval    time.Duration `json:"interval" yaml:"pollInterval"`
+	PingTimeout     time.Duration `json:"ping_timeout" yaml:"pingTimeout"`
+	Hosts           []string      `json:"hosts" yaml:"hosts"`
+	Verbose         bool          `json:"verbose" yaml:"verbose"`
 }
 
 // HostNameLength returns the length of the longest host name in the config.

@@ -61,14 +61,17 @@ func (c *Checks) OnInterval(action CheckIntervalAction) {
 // Start starts the healthcheck
 func (c *Checks) Start() {
 	c.startedAtUTC = time.Now().UTC()
-	ticker := time.NewTicker(c.config.PollInterval)
+	pingTicker := time.NewTicker(c.config.PollInterval)
+	refreshTicker := time.NewTicker(c.config.RefreshInterval)
+
 	for {
 		select {
 		case <-c.abort:
 			c.aborted <- true
 			return
-		case <-ticker.C:
+		case <-pingTicker.C:
 			c.PingAll()
+		case <-refreshTicker.C:
 			if c.intervalAction != nil {
 				c.intervalAction(c)
 			}
@@ -138,7 +141,7 @@ func (c *Checks) MaxElapsed() time.Duration {
 
 // WriteStatus writes the statuses for all the hosts.
 func (c *Checks) WriteStatus(writer io.Writer) error {
-	fmt.Fprintf(writer, "Health :: running for: %v, poll interval: %v, ping timeout: %v\n", time.Now().UTC().Sub(c.startedAtUTC), c.config.PollInterval, c.config.PingTimeout)
+	fmt.Fprintf(writer, "%s :: running for: %v, refresh: %v, poll: %v, timeout: %v\n", util.ColorLightWhite.Apply("Health"), time.Now().UTC().Sub(c.startedAtUTC), c.config.RefreshInterval, c.config.PollInterval, c.config.PingTimeout)
 	var err error
 	maxElapsed := c.MaxElapsed()
 	for index := range c.hosts {

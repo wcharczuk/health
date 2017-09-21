@@ -260,7 +260,8 @@ func (h Host) WriteDowntimeStatus(hostWidth int, writer io.Writer) error {
 	if h.TotalDowntime() > 0 {
 		totalTime := h.TotalTime()
 		downTime := h.TotalDowntime()
-		fmt.Fprintf(writer, "%s total: %v down: %v Δ: %v\n", host, totalTime, downTime, totalTime-downTime)
+		uptimePCT := float64((totalTime-downTime)/time.Millisecond) / float64(totalTime/time.Millisecond)
+		fmt.Fprintf(writer, "%s total: %v down: %v Δ: %0.3f%%\n", host, totalTime, downTime, uptimePCT*100)
 	}
 
 	return nil
