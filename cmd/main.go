@@ -91,7 +91,7 @@ func restoreTerm(initialSettings *health.Termios, tty *os.File) {
 }
 
 func render(tty *os.File, c *health.Checks) (err error) {
-	tty.Write(health.ANSI.Clear)
+	//tty.Write(health.ANSI.Clear)
 	tty.Write(health.ANSI.HideCursor)
 	tty.Write(health.ANSI.MoveCursor(0, 0))
 	tty.Write(health.ANSI.ColorReset)
