@@ -211,12 +211,12 @@ func (h Host) WriteStatus(hostWidth int, maxElapsed time.Duration, writer io.Wri
 
 	if !h.IsUp() {
 		downFor := time.Now().Sub(*h.downAt)
-		_, err := fmt.Fprintf(writer, "%s %6s %-6s Down For: %s\n", host, statusDOWN, uptimeText, FormatDuration(downFor))
+		_, err := fmt.Fprintf(writer, "%s %6s %-6s Down For: %s\r\n", host, statusDOWN, uptimeText, FormatDuration(downFor))
 		return err
 	}
 
 	if h.stats.Len() == 0 {
-		_, err := fmt.Fprintf(writer, "%s %s\n", host, unknownStatus)
+		_, err := fmt.Fprintf(writer, "%s %s\r\n", host, unknownStatus)
 		return err
 	}
 
@@ -248,6 +248,7 @@ func (h Host) WriteStatus(hostWidth int, maxElapsed time.Duration, writer io.Wri
 	buf.WriteString(fmt.Sprintf("%s: %-6s", labelAverage, FormatDuration(RoundDuration(avg, time.Millisecond))))
 	buf.WriteString(fmt.Sprintf("%s: %-6s", label99th, FormatDuration(RoundDuration(p99, time.Millisecond))))
 	buf.WriteString(fmt.Sprintf("%s: %-6s", label90th, FormatDuration(RoundDuration(p90, time.Millisecond))))
+	buf.WriteRune(rune('\r'))
 	buf.WriteRune(rune('\n'))
 	_, err := writer.Write(buf.Bytes())
 	return err
@@ -261,7 +262,7 @@ func (h Host) WriteDowntimeStatus(hostWidth int, writer io.Writer) error {
 		totalTime := h.TotalTime()
 		downTime := h.TotalDowntime()
 		uptimePCT := float64((totalTime-downTime)/time.Millisecond) / float64(totalTime/time.Millisecond)
-		fmt.Fprintf(writer, "%s total: %v down: %v Δ: %0.3f%%\n", host, totalTime, downTime, uptimePCT*100)
+		fmt.Fprintf(writer, "%s total: %v down: %v Δ: %0.3f%%\r\n", host, totalTime, downTime, uptimePCT*100)
 	}
 
 	return nil
@@ -278,6 +279,7 @@ func (h Host) WriteErrorStatus(hostWidth int, writer io.Writer) error {
 		buf.WriteString(host)
 		buf.WriteRune(rune(' '))
 		buf.WriteString(fmt.Sprintf("%v", err))
+		buf.WriteRune(rune('\r'))
 		buf.WriteRune(rune('\n'))
 		index++
 		return index < 5

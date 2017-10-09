@@ -141,7 +141,7 @@ func (c *Checks) MaxElapsed() time.Duration {
 
 // WriteStatus writes the statuses for all the hosts.
 func (c *Checks) WriteStatus(writer io.Writer) error {
-	fmt.Fprintf(writer, "%s :: running for: %v, refresh: %v, poll: %v, timeout: %v\n", util.ColorLightWhite.Apply("Health"), time.Now().UTC().Sub(c.startedAtUTC), c.config.RefreshInterval, c.config.PollInterval, c.config.PingTimeout)
+	fmt.Fprintf(writer, "%s :: running for: %v, refresh: %v, poll: %v, timeout: %v\r\n", util.ColorLightWhite.Apply("Health"), time.Now().UTC().Sub(c.startedAtUTC), c.config.RefreshInterval, c.config.PollInterval, c.config.PingTimeout)
 	var err error
 	maxElapsed := c.MaxElapsed()
 	for index := range c.hosts {
@@ -155,8 +155,8 @@ func (c *Checks) WriteStatus(writer io.Writer) error {
 		return nil
 	}
 
-	fmt.Fprintf(writer, "\n")
-	fmt.Fprintf(writer, "%s\n", util.ColorYellow.Apply("Downtime:"))
+	fmt.Fprintf(writer, "\r\n")
+	fmt.Fprintf(writer, "%s\r\n", util.ColorYellow.Apply("Downtime:"))
 
 	for index := range c.hosts {
 		err = c.hosts[index].WriteDowntimeStatus(c.longestHost, writer)
@@ -165,8 +165,8 @@ func (c *Checks) WriteStatus(writer io.Writer) error {
 		}
 	}
 
-	fmt.Fprintf(writer, "\n")
-	fmt.Fprintf(writer, "%s\n", util.ColorRed.Apply("Errors:"))
+	fmt.Fprintf(writer, "\r\n")
+	fmt.Fprintf(writer, "%s\r\n", util.ColorRed.Apply("Errors:"))
 
 	for index := range c.hosts {
 		err = c.hosts[index].WriteErrorStatus(c.longestHost, writer)
